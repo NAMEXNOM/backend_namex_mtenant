@@ -1,0 +1,7 @@
+POST http://127.0.0.1:3000/auth/login
+Content-Type: application/json
+
+{
+    "userRfc":"hera760219v34",
+    "password":"123456789"
+}

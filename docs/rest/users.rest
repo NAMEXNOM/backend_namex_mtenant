@@ -1,0 +1,15 @@
+GET http://127.0.0.1:3000/configuration
+
+### Guardar usuarios
+POST http://127.0.0.1:3000/configuration
+Content-Type: application/json
+
+{
+    "RH1_name": "ramon",
+    "RH1_email": "ramon@gmail.com",
+    "RH2_name": "laura",
+    "RH2_email": "laura@gmail.com",
+    "RH6_name": null,
+    "RH6_email": null
+
+}
