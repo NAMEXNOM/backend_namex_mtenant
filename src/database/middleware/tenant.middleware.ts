@@ -1,28 +1,34 @@
 import { Injectable, NestMiddleware, BadRequestException } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
-import { AsyncLocalStorage } from 'async_hooks'; // Nativo de Node.js
-
-// contenedor global que exportamos para que TypeORM lo lea después
-export const tenantStorage = new AsyncLocalStorage<string>();
+import { DataSource } from 'typeorm';
+import { tenantStorage } from '../tenant-storage';
 
 @Injectable()
 export class TenantMiddleware implements NestMiddleware {
-  use(req: Request, res: Response, next: NextFunction) {
-    // Extraer el encabezado inyectado por el Proxy de Nginx
-    const rawTenant = req.headers['x-tenant-id'] as string;
+  // Inyectamos el DataSource global para tener acceso al pool de conexiones nativo
+  constructor(private readonly dataSource: DataSource) {}
 
-    // Si no viene (pruebas locales/IP), cae a 'public' por defecto
+  async use(req: Request, res: Response, next: NextFunction) {
+    const rawTenant = req.headers['x-tenant-id'] as string;
     let tenantId = rawTenant || 'public';
 
-    // Sanitización de guiones para Postgres ("empresa-a" -> "empresa_a")
     tenantId = tenantId.replace(/-/g, '_').toLowerCase();
 
-    // Validación estricta de seguridad anti-inyección SQL
     if (!/^[a-z0-9_]+$/.test(tenantId)) {
       throw new BadRequestException('Identificador de empresa no válido.');
     }
 
-    // Ejecutar el hilo de la petición de forma aislada y segura
+    // 🚨 ENFOQUE DEFINITIVO: Cambiar el search_path directamente en el cliente Postgres
+    // Esto se ejecuta una Sola Vez por cada petición HTTP, eliminando la recursividad infinita
+    try {
+      const queryRunner = this.dataSource.createQueryRunner();
+      await queryRunner.connect();
+      await queryRunner.query(`SET search_path TO ${tenantId}, public;`);
+      await queryRunner.release(); // Liberamos el queryRunner de vuelta al pool
+    } catch (dbError) {
+      console.error('🚨 Error al setear el esquema de la petición:', dbError);
+    }
+
     tenantStorage.run(tenantId, () => {
       next();
     });
