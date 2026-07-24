@@ -43,7 +43,7 @@ import { TenantMiddleware } from './database/middleware/tenant.middleware';
         Attendance,
       ],
       // 🚨 INYECTA LA REGLA AQUÍ:
-      subscribers: [TenantSchemaSubscriber],
+      //subscribers: [TenantSchemaSubscriber],
       synchronize: false,
       ssl: {
         rejectUnauthorized: false
