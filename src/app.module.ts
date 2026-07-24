@@ -20,6 +20,9 @@ import { Attendance } from './modules/admin/attendances/entities/attendance.enti
 // 🚨 IMPORTACIÓN DEL MIDDLEWARE MULTI-TENANT
 import { TenantMiddleware } from './database/middleware/tenant.middleware';
 
+// 1. Agregar la importación arriba de tu archivo
+import { TenantSchemaSubscriber } from './database/tenant-schema.subscriber';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -41,6 +44,8 @@ import { TenantMiddleware } from './database/middleware/tenant.middleware';
         Vacation,
         Attendance,
       ],
+      // 🚨 INYECTA LA REGLA AQUÍ:
+      subscribers: [TenantSchemaSubscriber],
       synchronize: false,
       ssl: {
         rejectUnauthorized: false
