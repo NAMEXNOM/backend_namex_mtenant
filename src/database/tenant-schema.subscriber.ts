@@ -1,16 +1,25 @@
 import { EntitySubscriberInterface, EventSubscriber } from 'typeorm';
-import { tenantStorage } from './middleware/tenant.middleware'; // Ajustado a tu ruta real
+import { tenantStorage } from './tenant-storage'; // Tu almacenamiento aislado
 
 @EventSubscriber()
 export class TenantSchemaSubscriber implements EntitySubscriberInterface {
   
-  // Función central que fuerza a Postgres a usar el esquema dinámico
   private async connectionResolver(event: any): Promise<void> {
     const tenantId = tenantStorage.getStore() || 'public';
     
-    // Limpia la caché del buscador de Postgres y lo amarra a la empresa actual
-    await event.queryRunner.query(`RESET search_path;`);
-    await event.queryRunner.query(`SET search_path TO ${tenantId}, public;`);
+    // 🚨 REGRESIÓN DE ESCAPE: Si la query actual es precisamente un SET o RESET, 
+    // salimos de inmediato para romper el bucle infinito de memoria.
+    if (event.query?.includes('search_path')) {
+      return;
+    }
+
+    try {
+      // Forzar el cambio del buscador directo en Postgres de forma limpia
+      await event.queryRunner.query(`SET search_path TO ${tenantId}, public;`);
+    } catch (error) {
+      // Evitar que un fallo de red tire la API completa
+      console.error('🚨 Error al conmutar el esquema en Postgres:', error);
+    }
   }
 
   async beforeQuery(event: any): Promise<void> {
