@@ -11,7 +11,7 @@ async function bootstrap() {
     origin: true, // Permite que cualquier origen consulte la API (ideal para desarrollo/Swagger)
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
-    allowedHeaders: 'Content-Type, Accept, Authorization, X-Requested-With',
+    //allowedHeaders: 'Content-Type, Accept, Authorization, X-Requested-With, X-Tenant_ID',
   }); 
   // ------------------------------
 
@@ -51,5 +51,6 @@ async function bootstrap() {
   // FIN DE Swagger. 02-28-26
 
   await app.listen(process.env.PORT ?? 5000);
+ 
 }
 bootstrap();

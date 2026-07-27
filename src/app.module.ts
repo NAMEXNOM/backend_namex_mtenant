@@ -1,4 +1,4 @@
-import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common'; // 🚨 Actualizado para soportar Middlewares
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common'; 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -16,10 +16,11 @@ import { VacationsModule } from './modules/admin/vacations/vacations.module';
 import { Vacation } from './modules/admin/vacations/entities/vacation.entity';
 import { AttendancesModule } from './modules/admin/attendances/attendances.module';
 import { Attendance } from './modules/admin/attendances/entities/attendance.entity';
+import { CompaniesModule } from './modules/companies/companies.module';
+import { Company } from './modules/companies/entities/company.entity'; // 🟢 1. IMPORTA LA ENTIDAD AQUÍ
 
 // 🚨 IMPORTACIÓN DEL MIDDLEWARE MULTI-TENANT
 import { TenantMiddleware } from './database/middleware/tenant.middleware';
-
 
 @Module({
   imports: [
@@ -41,9 +42,8 @@ import { TenantMiddleware } from './database/middleware/tenant.middleware';
         Role,
         Vacation,
         Attendance,
+        Company, // 🟢 2. AGREGA LA ENTIDAD AL ARREGLO DE TYPEORM
       ],
-      // 🚨 INYECTA LA REGLA AQUÍ:
-      //subscribers: [TenantSchemaSubscriber],
       synchronize: false,
       ssl: {
         rejectUnauthorized: false
@@ -56,19 +56,20 @@ import { TenantMiddleware } from './database/middleware/tenant.middleware';
     PermissionsModule,
     RolesModule,
     VacationsModule,
-    AttendancesModule
+    AttendancesModule,
+    CompaniesModule
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-// 🚨 REGISTRO OPERATIVO DEL MIDDLEWARE MULTI-TENANT
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
       .apply(TenantMiddleware)
-      .forRoutes('*'); // Captura el subdominio de absolutamente todas las llamadas de la API
+      .forRoutes('*'); 
   }
 }
+
 
 
 /*
