@@ -64,7 +64,7 @@ import { TenantSubscriber } from './database/middleware/tenant.suscriber';
   ],
   controllers: [AppController],
   providers: [AppService],
-  exports: [TENANT_MANAGER], // 👈 Exportamos el token personalizado
+  
 })
 
 export class DatabaseModule{}
