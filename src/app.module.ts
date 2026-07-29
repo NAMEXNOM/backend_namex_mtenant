@@ -1,4 +1,4 @@
-import { Module, NestModule, MiddlewareConsumer, Global } from '@nestjs/common'; 
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common'; 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -17,13 +17,12 @@ import { Vacation } from './modules/admin/vacations/entities/vacation.entity';
 import { AttendancesModule } from './modules/admin/attendances/attendances.module';
 import { Attendance } from './modules/admin/attendances/entities/attendance.entity';
 import { CompaniesModule } from './modules/companies/companies.module';
-import { Company } from './modules/companies/entities/company.entity'; // 🟢 1. IMPORTA LA ENTIDAD AQUÍ
+import { Company } from './modules/companies/entities/company.entity'; 
 
 // 🚨 IMPORTACIÓN DEL MIDDLEWARE MULTI-TENANT
 import { TenantMiddleware } from './database/middleware/tenant.middleware';
 import { TenantSubscriber } from './database/middleware/tenant.suscriber';
 
-@Global()
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -44,7 +43,7 @@ import { TenantSubscriber } from './database/middleware/tenant.suscriber';
         Role,
         Vacation,
         Attendance,
-        Company, // 🟢 2. AGREGA LA ENTIDAD AL ARREGLO DE TYPEORM
+        Company, 
       ],
       subscribers: [TenantSubscriber],
       synchronize: false,
@@ -64,11 +63,7 @@ import { TenantSubscriber } from './database/middleware/tenant.suscriber';
   ],
   controllers: [AppController],
   providers: [AppService],
-  
 })
-
-export class DatabaseModule{}
-
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
