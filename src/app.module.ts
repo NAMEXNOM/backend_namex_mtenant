@@ -21,6 +21,7 @@ import { Company } from './modules/companies/entities/company.entity'; // 🟢 1
 
 // 🚨 IMPORTACIÓN DEL MIDDLEWARE MULTI-TENANT
 import { TenantMiddleware } from './database/middleware/tenant.middleware';
+import { TenantSubscriber } from './database/middleware/tenant.suscriber';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { TenantMiddleware } from './database/middleware/tenant.middleware';
         Attendance,
         Company, // 🟢 2. AGREGA LA ENTIDAD AL ARREGLO DE TYPEORM
       ],
+      subscribers: [TenantSubscriber],
       synchronize: false,
       ssl: {
         rejectUnauthorized: false
