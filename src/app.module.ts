@@ -1,4 +1,4 @@
-import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common'; 
+import { Module, NestModule, MiddlewareConsumer, Global } from '@nestjs/common'; 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -23,6 +23,7 @@ import { Company } from './modules/companies/entities/company.entity'; // 🟢 1
 import { TenantMiddleware } from './database/middleware/tenant.middleware';
 import { TenantSubscriber } from './database/middleware/tenant.suscriber';
 
+@Global()
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -63,7 +64,11 @@ import { TenantSubscriber } from './database/middleware/tenant.suscriber';
   ],
   controllers: [AppController],
   providers: [AppService],
+  exports: [TENANT_MANAGER], // 👈 Exportamos el token personalizado
 })
+
+export class DatabaseModule{}
+
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer

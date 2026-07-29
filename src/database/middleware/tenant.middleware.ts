@@ -9,7 +9,7 @@ export class TenantMiddleware implements NestMiddleware {
   constructor(private readonly dataSource: DataSource) {}
 
   async use(req: Request, res: Response, next: NextFunction) {
-    const rawTenant = req.headers['x-tenant-id'] as string;
+   /* const rawTenant = req.headers['x-tenant-id'] as string;
     let tenantId = rawTenant;
 
     if (!tenantId || tenantId === 'public') {
@@ -21,7 +21,30 @@ export class TenantMiddleware implements NestMiddleware {
       } else if (host.includes('localhost')) {
         tenantId = 'empresademo'; 
       }
+    }*/
+   // 1. Intentar leer el encabezado que inyecta Nginx (¡Esta es la prioridad absoluta!)
+    const rawTenant = req.headers['x-tenant-id'] as string;
+    let tenantId = rawTenant;
+
+    // 2. 🎯 EXTRACCIÓN DESDE EL HOST DEL NAVEGADOR
+    // Solo entramos aquí si Nginx no nos mandó el encabezado mapeado
+    if (!tenantId || tenantId === 'public' || tenantId === 'undefined') {
+      const host = req.headers.host || ''; 
+      
+      // 🟢 SI TIENE EL DOMINIO DE PRODUCCIÓN: Buscamos el subdominio de forma estricta
+      if (host.includes('namexportal.com')) {
+        const parts = host.split('.');
+        if (parts.length > 2) {
+          tenantId = parts[0]; // Captura "empresademo" o "empresa_a"
+        }
+      } 
+      // 🟢 SOLO SI NO ES EL DOMINIO REAL: Validamos si es desarrollo local en tu PC
+      // Cambiamos 'localhost' por 'localhost:3000' o el puerto de tu frontend local para evitar que Nginx lo confunda en el servidor
+      else if (host.includes('localhost:3000') || host.includes('127.0.0.1:3000')) {
+        tenantId = 'empresademo'; 
+      }
     }
+
 
     let finalTenant = (tenantId || 'public').replace(/-/g, '_').toLowerCase();
 
