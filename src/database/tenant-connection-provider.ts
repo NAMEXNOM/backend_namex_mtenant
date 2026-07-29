@@ -2,7 +2,7 @@ import { Provider, Scope, Inject } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
 import { Request } from 'express';
 import { DataSource, EntityManager } from 'typeorm';
-import { tenantStorage } from '../tenant-storage';
+import { tenantStorage } from './tenant-storage';
 
 // 🎯 Este token reemplazará la inyección estática en tus servicios
 export const TENANT_MANAGER = 'TENANT_MANAGER';
