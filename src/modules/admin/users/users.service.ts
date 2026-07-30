@@ -11,16 +11,11 @@ import * as bcrypt from 'bcrypt'
 @Injectable()
 export class UsersService {
   constructor(
-    // ❌ Eliminamos el @InjectRepository(User) viejo
-    // 🟢 Inyectamos el gestor de base de datos dinámico por petición
-    @Inject(TENANT_MANAGER)
-    private readonly entityManager: EntityManager
-  ) {}
+  @InjectRepository(User)
+  private readonly userRepository: Repository<User>
+) {}
 
-  // 🎯 El puente mágico: Resuelve el repositorio en el esquema correcto en milisegundos
-  private get userRepository(): Repository<User> {
-    return this.entityManager.getRepository(User);
-  }
+  
 
   async create(createUserDto: CreateUserDto) {
     console.log("Guardando en servicio ... ", createUserDto);

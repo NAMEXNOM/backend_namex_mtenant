@@ -23,7 +23,7 @@ import { Company } from './modules/companies/entities/company.entity'; // 🟢 1
 import { TenantModule } from './database/tenant.module'; // 👈 1. IMPORTA EL NUEVO MÓDULO GLOBAL
 import { TenantMiddleware } from './database/middleware/tenant.middleware';
 import { TenantConnectionProvider } from './database/tenant-connection.provider';
-
+import { TenantSubscriber } from './database/tenant.subscriber';
 
 @Module({
   imports: [
@@ -47,6 +47,7 @@ import { TenantConnectionProvider } from './database/tenant-connection.provider'
         Attendance,
         Company, // 🟢 2. AGREGA LA ENTIDAD AL ARREGLO DE TYPEORM
       ],
+      subscribers: [TenantSubscriber],
       synchronize: false,
       ssl: {
         rejectUnauthorized: false
