@@ -6,51 +6,50 @@ import { ValidationPipe } from '@nestjs/common';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // --- AGREGA ESTA LÍNEA AQUÍ ---
+  // 1. Configuración de CORS habilitando el encabezado personalizado
   app.enableCors({
-    origin: true, // Permite que cualquier origen consulte la API (ideal para desarrollo/Swagger)
+    origin: true, 
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
-    //allowedHeaders: 'Content-Type, Accept, Authorization, X-Requested-With, X-Tenant_ID',
+    // 🟢 Habilitamos explícitamente el encabezado con guion medio para evitar bloqueos del navegador
+    allowedHeaders: 'Content-Type, Accept, Authorization, X-Requested-With, X-Tenant-ID',
   }); 
-  // ------------------------------
 
-  // class validator de nestjs.doc  2-Marzo-2026 RAP
+  // Class validator de nestjs.doc 2-Marzo-2026 RAP
   app.useGlobalPipes(new ValidationPipe({
-     whitelist: true, //solo pasan los datos configurdos en DTO
-     forbidNonWhitelisted: true // avisa cuales datos no deben de ir
+     whitelist: true, 
+     forbidNonWhitelisted: true 
   }));
-  // Fin de class validator nestjs.doc 2-Marzo-2026 RAP
   
   // Swagger se copia de nesjs.doc openapi 02-28-26 AHR SWAGGER
   const configBuilder = new DocumentBuilder()
-    .addBearerAuth()    // se agrega para dar seguridad con token 03/31/2026 RAP
+    .addBearerAuth()    
     .setTitle('backend api')
     .setDescription('Backend api portal')
     .setVersion('1.0')
-    .addTag('node');
+    .addTag('node')
+    
+    // 🟢 2. Agrega el casillero visual de X-Tenant-ID en todos los endpoints de Swagger
+    .addGlobalParameters({
+      name: 'X-Tenant-ID',
+      in: 'header',
+      required: true,
+      description: 'Identificador del esquema de la empresa (ej: empresa_a, empresademo)',
+      schema: {
+        type: 'string',
+        default: 'empresa_a', 
+      },
+    });
 
-  // DETECCIÓN AUTOMÁTICA DE ENTORNO (Se configura ANTES de hacer .build())
-
+  // DETECCIÓN AUTOMÁTICA DE ENTORNO
   configBuilder.addServer(process.env.SWAGGER_SERVER_URL || 'http://localhost:5000', 'Servidor de la API');
 
-/*  if (process.env.NODE_ENV === 'production') {
-    // Apunta al subdominio de tu API en producción
-    configBuilder.addServer('https://fustes.namexportal.com/api', 'Servidor de Producción');
-  } else {
-    // Apunta al puerto 5000 que es donde escucha tu NestJS local
-    configBuilder.addServer('https://fustes.namexportal.com/api', 'Servidor de Producción FORZADO');
-  }
-    */
-
-  // Ahora sí, construimos la configuración finalizada
   const config = configBuilder.build();
 
   const documentFactory = () => SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('docs', app, documentFactory);
-  // FIN DE Swagger. 02-28-26
 
   await app.listen(process.env.PORT ?? 5000);
- 
 }
 bootstrap();
+
