@@ -22,7 +22,7 @@ export class TenantMiddleware implements NestMiddleware {
         }
       } 
       else if (host.includes('localhost:3000') || host.includes('127.0.0.1:3000')) {
-        tenantId = 'empresademo'; 
+        tenantId = 'empresa_a'; 
       }
     }
 
