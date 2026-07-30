@@ -9,120 +9,23 @@ export class TenantMiddleware implements NestMiddleware {
   constructor(private readonly dataSource: DataSource) {}
 
   async use(req: Request, res: Response, next: NextFunction) {
-   /* const rawTenant = req.headers['x-tenant-id'] as string;
-    let tenantId = rawTenant;
-
-    if (!tenantId || tenantId === 'public') {
-      const host = req.headers.host || ''; 
-      const parts = host.split('.');
-      
-      if (parts.length > 2) {
-        tenantId = parts[0]; 
-      } else if (host.includes('localhost')) {
-        tenantId = 'empresademo'; 
-      }
-    }*/
-   // 1. Intentar leer el encabezado que inyecta Nginx (¡Esta es la prioridad absoluta!)
+    // 1. Intentar leer el encabezado que inyecta Nginx (Prioridad absoluta)
     const rawTenant = req.headers['x-tenant-id'] as string;
     let tenantId = rawTenant;
 
-    // 2. 🎯 EXTRACCIÓN DESDE EL HOST DEL NAVEGADOR
-    // Solo entramos aquí si Nginx no nos mandó el encabezado mapeado
+    // 2. Extracción desde el host del navegador si Nginx no envió el encabezado
     if (!tenantId || tenantId === 'public' || tenantId === 'undefined') {
       const host = req.headers.host || ''; 
       
-      // 🟢 SI TIENE EL DOMINIO DE PRODUCCIÓN: Buscamos el subdominio de forma estricta
+      // Si tiene el dominio de producción: Buscamos el subdominio de forma estricta
       if (host.includes('namexportal.com')) {
         const parts = host.split('.');
         if (parts.length > 2) {
           tenantId = parts[0]; // Captura "empresademo" o "empresa_a"
         }
       } 
-      // 🟢 SOLO SI NO ES EL DOMINIO REAL: Validamos si es desarrollo local en tu PC
-      // Cambiamos 'localhost' por 'localhost:3000' o el puerto de tu frontend local para evitar que Nginx lo confunda en el servidor
+      // Si es desarrollo local en tu PC
       else if (host.includes('localhost:3000') || host.includes('127.0.0.1:3000')) {
-        tenantId = 'empresademo'; 
-      }
-    }
-
-
-    let finalTenant = (tenantId || 'public').replace(/-/g, '_').toLowerCase();
-
-    if (finalTenant === 'www') finalTenant = 'public';
-
-    if (!/^[a-z0-9_]+$/.test(finalTenant)) {
-      throw new BadRequestException('Identificador de empresa no válido.');
-    }
-
-    if (finalTenant !== 'public') {
-      try {
-        const companyRepository = this.dataSource.getRepository(Company);
-        const company = await companyRepository.findOne({
-          where: { tenantId: finalTenant }
-        });
-
-        if (!company) {
-          throw new UnauthorizedException(`La empresa '${finalTenant}' no está registrada.`);
-        }
-
-        if (!company.isActive) {
-          throw new HttpException(
-            {
-              status: HttpStatus.FORBIDDEN,
-              error: 'Acceso Suspendido',
-              message: `El acceso para la empresa '${company.name}' ha sido deshabilitado.`,
-            },
-            HttpStatus.FORBIDDEN
-          );
-        }
-
-        finalTenant = company.schemaName || finalTenant;
-
-      } catch (error) {
-        if (error instanceof HttpException) throw error;
-        console.error('🚨 Error crítico en tabla maestra:', error);
-        throw new HttpException('Error interno al validar accesos.', HttpStatus.INTERNAL_SERVER_ERROR);
-      }
-    }
-
-    // 🎯 GUARDAR EN ASYNCLOCALSTORAGE Y PASAR AL SIGUIENTE PASO
-    tenantStorage.run(finalTenant, () => {
-      next();
-    });
-  }
-}
-
-
-/*
-import { Injectable, NestMiddleware, BadRequestException, UnauthorizedException, HttpException, HttpStatus } from '@nestjs/common';
-import { Request, Response, NextFunction } from 'express';
-import { DataSource } from 'typeorm';
-import { tenantStorage } from '../tenant-storage';
-import { Company } from '../../modules/companies/entities/company.entity'; // 🟢 1. IMPORTA LA ENTIDAD (Ajusta la ruta si es necesario)
-
-@Injectable()
-export class TenantMiddleware implements NestMiddleware {
-  constructor(private readonly dataSource: DataSource) {}
-
-  async use(req: Request, res: Response, next: NextFunction) {
-    // 1. Intentar leer el encabezado de Nginx por si acaso
-    const rawTenant = req.headers['x-tenant-id'] as string;
-    let tenantId = rawTenant;
-
-    // 2. 🎯 EXTRACCIÓN DIRECTA DESDE EL HOST DEL NAVEGADOR
-    if (!tenantId || tenantId === 'public') {
-      const host = req.headers.host || ''; 
-      const parts = host.split('.');
-      
-      //if (parts.length > 2) {
-      //  tenantId = parts[0]; // Captura "empresademo", "empresa_a", etc.
-      //}
-
-      if (parts.length > 2) {
-        tenantId = parts[0]; // Captura "empresademo", "empresa_a" en producción
-      } else if (host.includes('localhost')) {
-        // 🟢 NUEVO: Si estás desarrollando localmente, fuérzalo a 'empresademo' 
-        // para que pueda ir a buscar este registro a la base de datos de AWS
         tenantId = 'empresademo'; 
       }
     }
@@ -138,8 +41,7 @@ export class TenantMiddleware implements NestMiddleware {
       throw new BadRequestException('Identificador de empresa no válido.');
     }
 
-    // 🟢 4. NUEVO: VALIDACIÓN CONTRA LA TABLA MAESTRA DE CLIENTES
-    // Si no es el esquema root 'public', validamos que la empresa exista y esté activa
+    // 4. Validación contra la tabla maestra de clientes
     if (finalTenant !== 'public') {
       try {
         const companyRepository = this.dataSource.getRepository(Company);
@@ -152,7 +54,7 @@ export class TenantMiddleware implements NestMiddleware {
           throw new UnauthorizedException(`La empresa '${finalTenant}' no está registrada en el sistema.`);
         }
 
-        // Si la empresa existe pero está deshabilitada (is_active = false)
+        // Si la empresa existe pero está deshabilitada
         if (!company.isActive) {
           throw new HttpException(
             {
@@ -164,14 +66,11 @@ export class TenantMiddleware implements NestMiddleware {
           );
         }
 
-        // Medida de seguridad extra: Usamos el nombre del esquema verificado en la BD 
-        // para mitigar cualquier intento de inyección de nombres de esquemas extraños
-        finalTenant = company.schemaName;
+        // Medida de seguridad: Usamos el esquema verificado en la BD si existe
+        finalTenant = company.schemaName || finalTenant;
 
       } catch (error) {
-        // Si es un error controlado por nosotros (HttpException / UnauthorizedException) lo lanzamos
         if (error instanceof HttpException) throw error;
-        
         console.error('🚨 Error crítico al validar el inquilino en la tabla maestra:', error);
         throw new HttpException('Error interno al validar los accesos de la empresa.', HttpStatus.INTERNAL_SERVER_ERROR);
       }
@@ -188,11 +87,9 @@ export class TenantMiddleware implements NestMiddleware {
       throw new HttpException('No se pudo establecer la conexión con el entorno de la empresa.', HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
+    // 6. Guardar en AsyncLocalStorage y pasar al siguiente paso
     tenantStorage.run(finalTenant, () => {
       next();
     });
   }
 }
-
-
-*/
