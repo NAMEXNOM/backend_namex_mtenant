@@ -9,6 +9,28 @@ export class TenantMiddleware implements NestMiddleware {
   constructor(private readonly dataSource: DataSource) {}
 
   async use(req: Request, res: Response, next: NextFunction) {
+    // 1. Intentar leer el encabezado que inyecta Nginx (Máxima prioridad)
+    const rawTenant = req.headers['x-tenant-id'] as string;
+    let tenantId = rawTenant;
+
+    // 2. EXTRACCIÓN DESDE EL HOST
+    if (!tenantId || tenantId === 'public' || tenantId === 'undefined') {
+      const host = req.headers.host || ''; 
+      
+      // 🟢 SI ES EL DOMINIO REAL: Buscamos el subdominio de forma estricta
+      if (host.includes('namexportal.com')) {
+        const parts = host.split('.');
+        if (parts.length > 2) {
+          tenantId = parts[0]; // Captura "empresademo", "empresa_a", etc.
+        }
+      } 
+      // 🟢 EN REPOSITORIO LOCAL EN TU PC: Validamos contra el puerto del frontend local (evita colisión con Nginx en AWS)
+      else if (host.includes('localhost:3000') || host.includes('127.0.0.1:3000')) {
+        tenantId = 'empresademo'; 
+      }
+    }
+
+    /*
     // 1. Intentar leer el encabezado de Nginx por si acaso
     const rawTenant = req.headers['x-tenant-id'] as string;
     let tenantId = rawTenant;
@@ -29,7 +51,7 @@ export class TenantMiddleware implements NestMiddleware {
         // para que pueda ir a buscar este registro a la base de datos de AWS
         tenantId = 'empresademo'; 
       }
-    }
+    }*/
 
     // 3. Sanitización estándar
     let finalTenant = (tenantId || 'public').replace(/-/g, '_').toLowerCase();
