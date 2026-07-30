@@ -4,23 +4,30 @@ import { tenantStorage } from './tenant-storage';
 @EventSubscriber()
 export class TenantSubscriber implements EntitySubscriberInterface {
   
-  // Este método intercepta físicamente cada consulta a la BD justo antes de ejecutarse
-  async beforeQuery(event: any) {
-    // 1. REGLA DE ESCAPE: Si la consulta ya es un comando de control, déjala pasar
-    if (event.query && event.query.includes('SET search_path')) {
-      return;
-    }
-
-    // 2. Extraer el esquema que guardó el middleware en memoria para esta petición
+  // Este método intercepta la consulta justo antes de que TypeORM ensamble el SQL
+  beforeQuery(event: any) {
+    // 1. Extraer el esquema que guardó el middleware para esta petición HTTP
     const tenantId = tenantStorage.getStore();
     
-    // 3. Forzar el camino de búsqueda de Postgres en la conexión física exacta que usará la consulta
+    // 2. Si hay un tenant activo y no es el público, forzamos el esquema a nivel de metadata
     if (tenantId && tenantId !== 'public') {
-      try {
-        await event.queryRunner.query(`SET search_path TO "${tenantId}", public;`);
-      } catch (error) {
-        console.error(`🚨 Error al forzar esquema en la consulta:`, error);
+      // Modificamos el esquema del metadato de la entidad para esta consulta específica
+      if (event.metadata) {
+        event.metadata.schema = tenantId;
+      }
+      
+      // Si la consulta viene empaquetada en un QueryBuilder, le inyectamos el esquema al vuelo
+      if (event.queryRunner && event.queryRunner.manager) {
+        event.connection.entityMetadatas.forEach(meta => {
+          meta.schema = tenantId;
+        });
+      }
+    } else {
+      // Si es una petición pública o del sistema central, aseguramos que use el esquema público
+      if (event.metadata) {
+        event.metadata.schema = 'public';
       }
     }
   }
 }
+
