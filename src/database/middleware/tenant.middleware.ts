@@ -26,7 +26,7 @@ export class TenantMiddleware implements NestMiddleware {
       } 
       // 🟢 EN REPOSITORIO LOCAL EN TU PC: Validamos contra el puerto del frontend local (evita colisión con Nginx en AWS)
       else if (host.includes('localhost:3000') || host.includes('127.0.0.1:3000')) {
-        tenantId = 'empresademo'; 
+        tenantId = 'empresa_a'; 
       }
     }
 
