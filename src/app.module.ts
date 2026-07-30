@@ -1,4 +1,4 @@
-import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common'; 
+import { Module, NestModule, MiddlewareConsumer, Global } from '@nestjs/common'; 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -20,7 +20,10 @@ import { CompaniesModule } from './modules/companies/companies.module';
 import { Company } from './modules/companies/entities/company.entity'; // 🟢 1. IMPORTA LA ENTIDAD AQUÍ
 
 // 🚨 IMPORTACIÓN DEL MIDDLEWARE MULTI-TENANT
+import { TenantModule } from './database/tenant.module'; // 👈 1. IMPORTA EL NUEVO MÓDULO GLOBAL
 import { TenantMiddleware } from './database/middleware/tenant.middleware';
+import { TenantConnectionProvider } from './database/tenant-connection.provider';
+
 
 @Module({
   imports: [
@@ -49,7 +52,7 @@ import { TenantMiddleware } from './database/middleware/tenant.middleware';
         rejectUnauthorized: false
       }
     }),
-
+    TenantModule,
     ConfigurationModule,
     UsersModule,
     AuthModule, 

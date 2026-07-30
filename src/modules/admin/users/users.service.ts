@@ -1,18 +1,25 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { User } from './entities/user.entity';
+import { TENANT_MANAGER } from '../../../database/tenant-connection.provider'; // Ajusta la ruta relativa
 import * as bcrypt from 'bcrypt'
 
 
 @Injectable()
 export class UsersService {
   constructor(
-    @InjectRepository(User)
-    private userRepository: Repository<User>
-  ){
+    // ❌ Eliminamos el @InjectRepository(User) viejo
+    // 🟢 Inyectamos el gestor de base de datos dinámico por petición
+    @Inject(TENANT_MANAGER)
+    private readonly entityManager: EntityManager
+  ) {}
+
+  // 🎯 El puente mágico: Resuelve el repositorio en el esquema correcto en milisegundos
+  private get userRepository(): Repository<User> {
+    return this.entityManager.getRepository(User);
   }
 
   async create(createUserDto: CreateUserDto) {
