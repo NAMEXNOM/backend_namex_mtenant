@@ -21,7 +21,7 @@ import { JwtStrategy } from './guards/strategies/jwt.strategy';
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_SECRET'), // Lee del .env de forma segura
-        signOptions: { expiresIn: '24h' }, // Mantiene tus 24 horas de expiración
+        signOptions: { expiresIn: '2h' }, // Mantiene tus 2 horas de expiración
       }),
     }),
     
