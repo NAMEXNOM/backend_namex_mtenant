@@ -3,7 +3,7 @@ import { Timestamp } from "typeorm/browser";
 import { Role } from "../../roles/entities/role.entity";
 import { Vacation } from './../../vacations/entities/vacation.entity';
 
-@Entity('user')  //********************************** */
+@Entity('users')  //********************************** */
 export class User {
     @PrimaryGeneratedColumn('uuid')
     userId: string;

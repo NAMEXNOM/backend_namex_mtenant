@@ -25,6 +25,7 @@
     "migration:revert": "npm run typeorm -- -d ./typeorm.config.ts migration:revert%"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1111.0",
     "@nestjs-modules/mailer": "^2.3.6",
     "@nestjs/common": "^11.1.19",
     "@nestjs/config": "^4.0.4",
@@ -43,7 +44,8 @@
     "pg": "^8.19.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "typeorm": "^0.3.28"
+    "typeorm": "^0.3.28",
+    "unzipper": "^0.12.5"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
@@ -53,10 +55,12 @@
     "@nestjs/testing": "^11.0.1",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
+    "@types/multer": "^2.2.0",
     "@types/node": "^22.19.19",
     "@types/nodemailer": "^8.0.0",
     "@types/passport-jwt": "^4.0.1",
     "@types/supertest": "^6.0.2",
+    "@types/unzipper": "^0.10.11",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",
