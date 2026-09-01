@@ -1,4 +1,8 @@
 import { Module, NestModule, MiddlewareConsumer, Global } from '@nestjs/common'; 
+
+import { AwsModule } from './shared/aws/aws.module';
+
+
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { TypeOrmModule } from '@nestjs/typeorm';

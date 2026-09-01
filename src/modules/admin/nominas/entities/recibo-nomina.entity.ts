@@ -1,3 +1,4 @@
+// src/modules/admin/nominas/entities/recibo-nomina.entity.ts
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index } from 'typeorm';
 
 @Entity('recibos_nomina')
@@ -15,15 +16,27 @@ export class ReciboNomina {
   @Column({ name: 'user_rfc', length: 13 })
   userRfc!: string;
 
-  @Column({ name: 's3_key', length: 512 })
-  s3Key!: string;
+  // Modificado: Ahora guardamos URLs completas de S3 por separado para PDF y XML
+  @Column({ name: 'url_pdf', length: 512 })
+  urlPdf!: string;
 
-  @Column({ name: 'periodo_anio', type: 'int' })
-  periodoAnio!: number;
+  @Column({ name: 'url_xml', length: 512 })
+  urlXml!: string;
 
-  @Column({ name: 'periodo_mes', type: 'int' })
-  periodoMes!: number;
+  // Nuevos campos de control de periodos y tipos de nómina
+  @Column({ name: 'periodo_tipo', length: 50 }) // 'Semanal', 'Quincenal', 'Mensual'
+  periodoTipo!: string;
 
-  @CreateDateColumn({ name: 'creado_at', type: 'timestamp with time zone' })
-  creadoAt!: Date;
+  @Column({ name: 'numero_periodo', type: 'int' }) // Ej. Periodo 14
+  numeroPeriodo!: number;
+
+  @Column({ name: 'nomina_tipo', length: 50 }) // 'Ordinaria' o 'Especial'
+  nominaTipo!: string;
+
+  // Nuevo campo para renderizar en el historial del empleado
+  @Column({ name: 'monto_neto', type: 'decimal', precision: 10, scale: 2, default: 0.00 })
+  montoNeto!: number;
+
+  @CreateDateColumn({ name: 'fecha_pago', type: 'timestamp with time zone' })
+  fechaPago!: Date;
 }
