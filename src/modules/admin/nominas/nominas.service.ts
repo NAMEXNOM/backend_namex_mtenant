@@ -3,7 +3,7 @@ import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { S3Service } from '../../../shared/aws/s3.service';
 import { UploadNominaDto } from './dto/upload-nomina.dto';
-import * as AdmZip from 'adm-zip'; // 🟢 Cambiamos a adm-zip
+const AdmZip = require('adm-zip'); // 🟢 Cambiar por esta línea
 import * as crypto from 'crypto';
 
 @Injectable()
