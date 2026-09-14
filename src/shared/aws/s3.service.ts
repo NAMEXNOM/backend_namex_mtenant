@@ -46,7 +46,8 @@ export class S3Service {
       // return `https://${this.bucketName}://{s3Key}`;
       //return "https://amazonaws.com" + s3Key;
       //return "https://" + this.bucketName + "://" + s3Key;
-      return "https://namexportal-nominas-private.s3.us-east-2.amazonaws.com" + s3Key;
+      //return "https://namexportal-nominas-private.s3.us-east-2.amazonaws.com" + s3Key;
+      return s3Key;
 
     } catch (error) {
       console.error('Error subiendo archivo a AWS S3:', error);
