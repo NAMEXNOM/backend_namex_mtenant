@@ -43,7 +43,9 @@ export class S3Service {
       // 2. 🟢 Corrección de URL: Retorna la URL estándar y limpia para que Next.js pueda abrir el archivo
       //return `https://${this.bucketName}.s3.${process.env.AWS_REGION || 'us-east-1'}://{s3Key}`;
       // 🟢 REEMPLAZA LA LÍNEA DEL RETURN POR ESTA ESTRUCTURA DE ALTO NIVEL:
-      return `https://${this.bucketName}://{s3Key}`;
+      // return `https://${this.bucketName}://{s3Key}`;
+      //return "https://amazonaws.com" + s3Key;
+      return "https://" + this.bucketName + "://" + s3Key;
 
     } catch (error) {
       console.error('Error subiendo archivo a AWS S3:', error);
