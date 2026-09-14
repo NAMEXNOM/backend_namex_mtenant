@@ -42,9 +42,9 @@ export class NominasEmpleadoController {
   /**
    * 🔵 ENDPOINT 2: Actúa como puente seguro para descargar los archivos de S3 sin URLs públicas
    */
-  @UseGuards(JwtAuthGuard)
-  @Get('descargar-archivo')
-  async descargarArchivo(
+    @UseGuards(JwtAuthGuard)
+    @Get('descargar-archivo')
+    async descargarArchivo(
     @Query('key') s3Key: string,
     @Res() res: Response
   ) {
@@ -60,8 +60,17 @@ export class NominasEmpleadoController {
 
       const s3Response = await this.s3Client.send(command);
       
-      // Forzamos a que el navegador lo interprete como PDF
-      res.setHeader('Content-Type', 'application/pdf');
+      // 🟢 DETECCION DINÁMICA DE TIPO DE ARCHIVO (PDF o XML)
+      const llaveMinusculas = s3Key.toLowerCase();
+      if (llaveMinusculas.endsWith('.xml')) {
+        // Indica al navegador que es un archivo XML XML y fuerza la descarga limpia
+        res.setHeader('Content-Type', 'application/xml');
+        res.setHeader('Content-Disposition', `attachment; filename="${s3Key.split('/').pop()}"`);
+      } else {
+        // Si es PDF, mantiene la visualización directa en pantalla
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'inline');
+      }
       
       const stream = s3Response.Body as any;
       stream.pipe(res);
@@ -69,6 +78,7 @@ export class NominasEmpleadoController {
       res.status(500).json({ message: 'No se pudo recuperar el archivo de S3.', error: error.message });
     }
   }
+
 }
 
 
