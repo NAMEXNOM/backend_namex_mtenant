@@ -189,6 +189,41 @@ export class NominasService {
       await queryRunner.release();
     }
   }
+
+// Agregar al final de tu nominas.service.ts local:
+async obtenerRecibosPorEmpleado(rfcEmpleado: string, tenantIdHeader: string) {
+  const queryRunner = this.dataSource.createQueryRunner();
+  await queryRunner.connect();
+
+  try {
+    // 1. Conmutar en caliente al esquema físico de la empresa (Tenant)
+    await queryRunner.query(`SET search_path TO ${tenantIdHeader}`);
+
+    // 2. Traer todos los recibos guardados que coincidan con su RFC
+    const recibos = await queryRunner.manager.query(
+      `SELECT 
+        id, 
+        periodo_tipo, 
+        numero_periodo, 
+        nomina_tipo, 
+        fecha_pago, 
+        url_pdf, 
+        url_xml, 
+        monto_neto 
+       FROM recibos_nomina 
+       WHERE user_rfc = $1 
+       ORDER BY fecha_pago DESC`,
+      [rfcEmpleado]
+    );
+
+    return recibos;
+  } finally {
+    // Liberamos la conexión a la base de datos de inmediato por rendimiento
+    await queryRunner.release();
+  }
+}
+
+
 }
 
 
