@@ -1,13 +1,13 @@
-// src/modules/admin/nominas/nominas-empleado.controller.ts
-import { Controller, Get, Query, Headers, Res, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, Headers, Res, UseGuards, Request, BadRequestException } from '@nestjs/common';
 import { Response } from 'express';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
-import { JwtAuthGuard } from './../../auth/guards/jwt-auth.guard';
+import { NominasService } from './nominas.service';
+import { JwtAuthGuard } from './../../auth/guards/jwt-auth.guard'; // Ajusta la ruta a tu Guard real
 
 @Controller('nominas')
 export class NominasEmpleadoController {
-  
-  // Creamos el cliente interno de S3 usando tus variables de entorno
+  constructor(private readonly nominasService: NominasService) {}
+
   private s3Client = new S3Client({
     region: process.env.AWS_REGION || 'us-east-2',
     credentials: {
@@ -16,6 +16,32 @@ export class NominasEmpleadoController {
     },
   });
 
+  /**
+   * 🟢 ENDPOINT 1: Recupera el listado de recibos del empleado para llenar la tabla
+   */
+  @UseGuards(JwtAuthGuard)
+  @Get('mis-recibos')
+  async obtenerMisRecibos(
+    @Request() req: any,
+    @Headers('x-tenant-id') tenantId: string,
+  ) {
+    if (!tenantId) {
+      throw new BadRequestException('El header x-tenant-id es requerido');
+    }
+
+    // Leemos el RFC del token desempacado por tu Guard
+    const rfcEmpleado = req.user?.rfc;
+
+    if (!rfcEmpleado) {
+      throw new BadRequestException('No se encontró un RFC válido en tu sesión.');
+    }
+    
+    return await this.nominasService.obtenerRecibosPorEmpleado(rfcEmpleado, tenantId);
+  }
+
+  /**
+   * 🔵 ENDPOINT 2: Actúa como puente seguro para descargar los archivos de S3 sin URLs públicas
+   */
   @UseGuards(JwtAuthGuard)
   @Get('descargar-archivo')
   async descargarArchivo(
@@ -23,6 +49,10 @@ export class NominasEmpleadoController {
     @Res() res: Response
   ) {
     try {
+      if (!s3Key) {
+        return res.status(400).json({ message: 'La llave del archivo es requerida.' });
+      }
+
       const command = new GetObjectCommand({
         Bucket: process.env.AWS_S3_BUCKET_NOMINAS || 'namexportal-nominas-private',
         Key: s3Key,
@@ -30,14 +60,13 @@ export class NominasEmpleadoController {
 
       const s3Response = await this.s3Client.send(command);
       
-      // Configuramos las cabeceras para que el navegador sepa que es un PDF seguro
+      // Forzamos a que el navegador lo interprete como PDF
       res.setHeader('Content-Type', 'application/pdf');
       
-      // Transmitimos los bytes directamente de S3 al navegador del empleado
       const stream = s3Response.Body as any;
       stream.pipe(res);
-    } catch (error) {
-      res.status(500).json({ message: 'No se pudo recuperar el archivo de S3.' });
+    } catch (error: any) {
+      res.status(500).json({ message: 'No se pudo recuperar el archivo de S3.', error: error.message });
     }
   }
 }
