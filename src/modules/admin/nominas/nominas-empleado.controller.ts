@@ -2,7 +2,7 @@
 import { Controller, Get, Query, Headers, Res, UseGuards } from '@nestjs/common';
 import { Response } from 'express';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
-import { JwtAuthGuard } from '../../../shared/guards/jwt-auth.guard';
+import { JwtAuthGuard } from './../../auth/guards/jwt-auth.guard';
 
 @Controller('nominas')
 export class NominasEmpleadoController {
