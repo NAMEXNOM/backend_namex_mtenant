@@ -55,7 +55,7 @@ import { NominasModule } from './modules/admin/nominas/nominas.module';
         Company, 
       ],
       subscribers: [TenantSubscriber],
-      synchronize: false,
+      synchronize: true,
       ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
     }),
     TenantModule,
