@@ -39,6 +39,30 @@ export class AuthService {
     }
 
     const nombreCompleto = `${user.name || ''} ${user.firstLastName || ''} ${user.secondLastName || ''}`.trim();
+
+    // 🟢 DETECCIÓN DE ROL INTELIGENTE E INTEGRAL:
+    // Lee primero la relación de roles, pero si la columna empPriv de tu base de datos
+    // dice 'admin' o 'ADMIN', forzará el privilegio de inmediato de forma nativa.
+    let nombreRol = user.roles?.[0]?.name || 'sin-rol';
+    if (user.empPriv === 'admin' || user.empPriv === 'ADMIN') {
+      nombreRol = 'admin';
+    }
+  
+    const payload = { sub: user.userId, rfc: user.userRFC, role: nombreRol };
+
+    return {
+      userId:  user.userId, 
+      userName: nombreCompleto,
+      role: nombreRol, // 🚀 Viaja limpio al frontend en el cuerpo
+      userBalance: user.vacationBalance || 0,
+      vacationsTaken: user.vacationsTaken || 0,
+      firstTimeLoad: user.firstTimeLoad, 
+      status: user.status,
+      access_token: await this.jwtService.signAsync(payload) // 🚀 Viaja blindado dentro del JWT 
+    };
+
+    /*
+
     const nombreRol = user.roles?.[0]?.name || 'sin-rol';
   
     const payload = { sub: user.userId, rfc: user.userRFC, role: nombreRol };
@@ -52,7 +76,7 @@ export class AuthService {
       firstTimeLoad: user.firstTimeLoad, 
       status: user.status,
       access_token: await this.jwtService.signAsync(payload)  
-    };
+    };  */
   }
 
   async sendTemporaryPassword(body: any) {
