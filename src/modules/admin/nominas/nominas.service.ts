@@ -95,7 +95,113 @@ export class NominasService {
         }
       }
 
-      // 4. Segundo pase: Procesar, subir a S3 y guardar registros
+      // 4. Segundo pase: Procesar, subir a S3 y guardar registros con extracción de Fecha de Pago
+      for (const [rfc, archivos] of Object.entries(rfcGroupedFiles)) {
+        if (!archivos.pdf || !archivos.xml) {
+          resultados.push({
+            archivo: archivos.pdfPath || archivos.xmlPath,
+            rfc,
+            procesado: false,
+            motivo: 'Omitido',
+            error: `Falta el par complementario del archivo de nómina (se requiere PDF y XML conjuntamente).`,
+          });
+          continue;
+        }
+
+        try {
+          // 5. Buscar si el empleado existe bajo el esquema del Tenant
+          const [empleado] = await queryRunner.manager.query(
+            `SELECT "userId" FROM users WHERE "userRFC" = $1 LIMIT 1`,
+            [rfc]
+          );
+
+          if (!empleado) {
+            resultados.push({
+              archivo: `${archivos.pdfPath} y ${archivos.xmlPath}`,
+              rfc,
+              procesado: false,
+              motivo: 'Omitido',
+              error: `El empleado con RFC ${rfc} no se encuentra registrado en este tenant.`,
+            });
+            continue;
+          }
+
+          // 🌟 REGLA DE EXTRACCIÓN AUTOMÁTICA DE FECHA DE PAGO DESDE EL XML
+          // Convertimos los bytes del buffer del XML a texto plano UTF-8
+          const contenidoXmlTexto = archivos.xml.toString('utf8');
+          
+          // Expresión regular que busca "FechaPago=" seguida de cualquier fecha YYYY-MM-DD
+          const patronFechaPago = /FechaPago\s*=\s*["'](\d{4}-\d{2}-\d{2})["']/i;
+          const matchFecha = contenidoXmlTexto.match(patronFechaPago);
+          
+          let fechaPagoFinal: Date;
+
+          if (matchFecha && matchFecha[1]) {
+            // Si el detector encuentra la fecha del SAT (Ej: 2026-09-15), la parseamos limpia
+            fechaPagoFinal = new Date(matchFecha[1] + 'T00:00:00');
+            this.logger.log(`[NominasService] Fecha de Pago detectada automáticamente en XML para RFC ${rfc}: ${matchFecha[1]}`);
+          } else {
+            // Fallback de seguridad: Si el XML viniera maltratado, usamos el día de hoy
+            fechaPagoFinal = new Date();
+            this.logger.warn(`[NominasService] No se encontró el atributo FechaPago en el XML del RFC ${rfc}. Se usará la fecha actual.`);
+          }
+
+          // 6. Subir archivos a AWS S3
+          const folderPath = `tenants/${uuidRealTenant}/nominas/${anioActual}/${metadata.periodo_tipo}/Periodo_${metadata.numero_periodo}/${rfc}`;
+          const uniqueId = crypto.randomUUID();
+          
+          const s3KeyPdf = `${folderPath}/${rfc}_${uniqueId}.pdf`;
+          const s3KeyXml = `${folderPath}/${rfc}_${uniqueId}.xml`;
+
+          await Promise.all([
+            this.s3Service.uploadFile(archivos.pdf, folderPath, `${rfc}_${uniqueId}.pdf`, 'application/pdf'),
+            this.s3Service.uploadFile(archivos.xml, folderPath, `${rfc}_${uniqueId}.xml`, 'text/xml'),
+          ]);
+
+          const montoNetoSimulado = 0.00;
+
+          // 7. Insertar el recibo en la tabla inyectando la fecha extraída del XML
+          await queryRunner.manager.query(
+            `INSERT INTO recibos_nomina (
+              tenant_id, user_id, user_rfc, url_pdf, url_xml, 
+              periodo_tipo, numero_periodo, nomina_tipo, monto_neto, fecha_pago
+             ) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+            [
+              uuidRealTenant, 
+              empleado.userId, 
+              rfc, 
+              s3KeyPdf, 
+              s3KeyXml, 
+              metadata.periodo_tipo, 
+              parseInt(metadata.numero_periodo, 10), 
+              metadata.nomina_tipo,
+              montoNetoSimulado,
+              fechaPagoFinal // 🟢 Reemplazamos NOW() por la fecha real del CFDI
+            ]
+          );
+
+          resultados.push({
+            archivo: `${archivos.pdfPath} y ${archivos.xmlPath}`,
+            rfc,
+            procesado: true,
+            motivo: 'Aceptado',
+            mensaje: 'Recibo asignado. Fecha de pago extraída del XML exitosamente.',
+          });
+
+        } catch (error: any) {
+          this.logger.error(`Error procesando nómina para RFC ${rfc}: ${error.message}`);
+          resultados.push({ 
+            archivo: `${archivos.pdfPath || ''} / ${archivos.xmlPath || ''}`, 
+            rfc, 
+            procesado: false, 
+            motivo: 'Error', 
+            error: error.message 
+          });
+        }
+      }
+
+/*      // 4. Segundo pase: Procesar, subir a S3 y guardar registros
       for (const [rfc, archivos] of Object.entries(rfcGroupedFiles)) {
         if (!archivos.pdf || !archivos.xml) {
           resultados.push({
@@ -179,6 +285,8 @@ export class NominasService {
           });
         }
       }
+
+      */
 
       return {
         status: 'success',
