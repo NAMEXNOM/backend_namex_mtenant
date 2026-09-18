@@ -1,3 +1,4 @@
+import { DataSource } from 'typeorm';
 import { Injectable, UnauthorizedException, NotFoundException } from '@nestjs/common';
 import { UsersService } from '../admin/users/users.service';  
 import { JwtService } from '@nestjs/jwt'; 
@@ -9,7 +10,8 @@ export class AuthService {
   constructor(
     private usersService: UsersService,
     private readonly jwtService: JwtService,
-    private readonly mailerService: MailerService 
+    private readonly mailerService: MailerService,
+    private readonly dataSource: DataSource
   ) {}
 
   async login(body: any) {
@@ -34,6 +36,43 @@ export class AuthService {
     // Comparamos el texto plano del formulario contra el hash de la base de datos
     const passwordValido = await bcrypt.compare(password, user.password);
     
+
+    if (!passwordValido) {
+      throw new UnauthorizedException('RFC o contraseña incorrectos'); 
+    }
+
+    // 🟢 AUDITORÍA Y CANDADO DE RESPALDO POR QUERY NATIVO:
+    // Para no pelear con los mapeos de TypeORM, leemos el esquema directamente
+    // Nota: Jala el header del tenant. Si no lo tienes en los argumentos, puedes usar user.company?.schema_name o tu valor por defecto
+    const schemaName = body.tenantId || 'empresademo'; 
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    
+    let empPrivReal = 'usuario';
+    try {
+      await queryRunner.query(`SET search_path TO ${schemaName}`);
+      const [dbUser] = await queryRunner.manager.query(
+        `SELECT "empPriv" FROM users WHERE "userRFC" = $1 LIMIT 1`,
+        [user.userRFC]
+      );
+      if (dbUser) {
+        empPrivReal = dbUser.empPriv;
+      }
+    } finally {
+      await queryRunner.release();
+    }
+
+    const nombreCompleto = `${user.name || ''} ${user.firstLastName || ''} ${user.secondLastName || ''}`.trim();
+    
+    // Asignamos el rol basado en la lectura nativa real de la base de datos
+    let nombreRol = user.roles?.[0]?.name || 'sin-rol';
+    if (empPrivReal === 'admin' || empPrivReal === 'ADMIN') {
+      nombreRol = 'admin';
+    }
+  
+    const payload = { sub: user.userId, rfc: user.userRFC, role: nombreRol };
+
+    /*
     if (!passwordValido) {
       throw new UnauthorizedException('RFC o contraseña incorrectos'); 
     }
@@ -49,6 +88,7 @@ export class AuthService {
     }
   
     const payload = { sub: user.userId, rfc: user.userRFC, role: nombreRol };
+    */
 
     return {
       userId:  user.userId, 
