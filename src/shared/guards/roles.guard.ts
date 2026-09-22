@@ -7,15 +7,12 @@ export class RolesGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    // 1. Leemos los roles permitidos que le programamos al endpoint
     const rolesPermitidos = this.reflector.get<string[]>('roles', context.getHandler());
     
-    // Si el endpoint no tiene ninguna restricción de rol especificada, damos paso libre
     if (!rolesPermitidos) {
       return true;
     }
 
-    // 2. Extraemos el objeto 'user' que previamente desempaquetó tu JwtAuthGuard
     const request = context.switchToHttp().getRequest();
     const usuario = request.user;
 
@@ -23,13 +20,13 @@ export class RolesGuard implements CanActivate {
       throw new ForbiddenException('No tienes un rol válido asignado en tu sesión.');
     }
 
-    // 3. 🟢 NORMALIZACIÓN EN MAYÚSCULAS (Tu brillante idea):
-    // Convertimos el rol del token a mayúsculas para que acepte 'admin', 'Admin' o 'ADMIN' sin romperse
+    // 1. Convertimos el rol del usuario a MAYÚSCULAS limpias (Ej: 'admin' -> 'ADMIN') [1.1]
     const rolUsuarioSuperior = usuario.role.trim().toUpperCase();
     
-    // Convertimos también la lista de roles permitidos a mayúsculas para comparar manzanas con manzanas
+    // 2. 🟢 LA CORRECCIÓN: Convertimos también toda la lista permitida a MAYÚSCULAS
+    // Así, sin importar si en el controlador escribiste 'admin' o 'ADMIN', se comparará como 'ADMIN' [1.1].
     const tienePermiso = rolesPermitidos
-      .map(r => r.toUpperCase())
+      .map(role => role.trim().toUpperCase())
       .includes(rolUsuarioSuperior);
 
     if (!tienePermiso) {
