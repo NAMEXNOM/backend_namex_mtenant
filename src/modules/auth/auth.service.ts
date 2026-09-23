@@ -62,16 +62,36 @@ export class AuthService {
       await queryRunner.release();
     }
 
+
     const nombreCompleto = `${user.name || ''} ${user.firstLastName || ''} ${user.secondLastName || ''}`.trim();
     
+    // 🟢 NORMALIZACIÓN EXTRACTORA (Tu brillante estrategia)
+    // 1. Limpiamos y forzamos el valor de la base de datos a MAYÚSCULAS para evitar errores de dedo humanos
+    const privilegioBaseDatos = empPrivReal ? empPrivReal.trim().toUpperCase() : 'USUARIO';
+    
+    let nombreRol = 'usuario';
+
+    // 2. Evaluación flexible de dos capas: acepta cualquier variante de administración
+    if (privilegioBaseDatos === 'ADMIN' || privilegioBaseDatos === 'ADMINISTRADOR') {
+      nombreRol = 'admin';
+    } else {
+      // Si no es jefe, hereda de forma dinámica el valor exacto en minúsculas de tu PostgreSQL (ej: 'usuario', 'rh')
+      nombreRol = empPrivReal ? empPrivReal.trim().toLowerCase() : 'usuario';
+    }
+  
+    const payload = { sub: user.userId, rfc: user.userRFC, role: nombreRol };
+
+
+    //const nombreCompleto = `${user.name || ''} ${user.firstLastName || ''} ${user.secondLastName || ''}`.trim();
+    
     // Asignamos el rol basado en la lectura nativa real de la base de datos
-    let nombreRol = user.roles?.[0]?.name || 'sin-rol';
+    /*let nombreRol = user.roles?.[0]?.name || 'sin-rol';
     if (empPrivReal === 'admin' || empPrivReal === 'ADMIN') {
       nombreRol = 'admin';
     }
   
     const payload = { sub: user.userId, rfc: user.userRFC, role: nombreRol };
-
+*/
     /*
     if (!passwordValido) {
       throw new UnauthorizedException('RFC o contraseña incorrectos'); 
