@@ -7,6 +7,72 @@ import * as express from 'express'; // 🟢 Importamos express para configurar l
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // 1. Incrementar límites de tamaño para el body (Evita el error 413 Payload Too Large en ZIPs grandes)
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+  // 2. Configuración de CORS habilitando el encabezado personalizado
+  app.enableCors({
+    origin: true, 
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    credentials: true,
+    // Habilitamos explícitamente el encabezado con guion medio para evitar bloqueos del navegador
+    allowedHeaders: 'Content-Type, Accept, Authorization, X-Requested-With, X-Tenant-ID',
+  }); 
+
+  // Class validator de nestjs.doc 2-Marzo-2026 RAP
+  app.useGlobalPipes(new ValidationPipe({
+     whitelist: true, 
+     forbidNonWhitelisted: true 
+  }));
+  
+  // Swagger se copia de nesjs.doc openapi 02-28-26 AHR SWAGGER
+  const configBuilder = new DocumentBuilder()
+    .addBearerAuth()    
+    .setTitle('backend api')
+    .setDescription('Backend api portal')
+    .setVersion('1.0')
+    .addTag('node')
+    
+    // Agrega el casillero visual de X-Tenant-ID en todos los endpoints de Swagger
+    .addGlobalParameters({
+      name: 'X-Tenant-ID',
+      in: 'header',
+      required: true,
+      description: 'Identificador del esquema de la empresa (ej: empresa_a, empresademo)',
+      schema: {
+        type: 'string',
+        default: 'empresa_a', 
+      },
+    })
+
+    // 🚀 MULTI-SERVER SELECTION: Al declarar más de un servidor, Swagger activa el Listbox automáticamente
+    // Opción 1: Apunta al puente relativo de Nginx en producción (Sirve para cualquier dominio o IP en AWS)
+    .addServer('/api', 'Servidor de Producción AWS EC2 (Vía Nginx)')
+    // Opción 2: Apunta a tu entorno local de desarrollo en tu PC de casa
+    .addServer('http://localhost:5000', 'Entorno de Desarrollo Local');
+
+  const config = configBuilder.build();
+
+  const documentFactory = () => SwaggerModule.createDocument(app, config);
+  // Reestablecemos tu ruta limpia de acceso que tenías: /docs
+  SwaggerModule.setup('docs', app, documentFactory);
+
+  await app.listen(process.env.PORT ?? 5002);
+}
+bootstrap();
+
+
+/*
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { ValidationPipe } from '@nestjs/common';
+import * as express from 'express'; // 🟢 Importamos express para configurar los límites del body
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+
   // 🟢 1. Incrementar límites de tamaño para el body (Evita el error 413 Payload Too Large en ZIPs grandes)
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -58,7 +124,7 @@ async function bootstrap() {
 }
 bootstrap();
 
-
+*/
 /*
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
