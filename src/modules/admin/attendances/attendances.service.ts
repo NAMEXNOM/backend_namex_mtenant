@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
 import { Attendance } from './entities/attendance.entity';
@@ -71,67 +71,6 @@ export class AttendancesService {
     };
   }
 
-/*
-    async createAttendanceCompleto(dto: CreateAttendanceDto): Promise<{ status: number; message: string; data: Attendance }> {
-    // 1. Validar que el usuario exista
-    const user = await this.usersService.findById(dto.userId);
-    if (!user) {
-      throw new NotFoundException(`El usuario con ID ${dto.userId} no existe.`);
-    }
-
-    // 2. 🟢 REPARADO: Corregido error de dedo en dto.dto y mapeado a camelCase estándar de TypeORM
-    const nuevosDatosAsistencia: any = {
-      userId: dto.userId, 
-      recDate: dto.recDate,
-      recType: dto.recType ?? 'Regular', // 🟢 Corregido (antes decía dto.dto.recType)
-      shift: dto.shift ?? 1,
-      incidentId: dto.incidentId ?? null,  // 🟢 Mapeado a camelCase
-      dailyHours: dto.dailyHours ?? 0.00,  // 🟢 Mapeado a camelCase
-      
-      // 🟢 CONTROL DE HORAS: Mapeado a camelCase para que TypeORM llene las columnas correctas
-      checkIn1: dto.check_in_1 ?? null,
-      checkOut1: dto.check_out_1 ?? null,
-      checkIn2: dto.check_in_2 ?? null,
-      checkOut2: dto.check_out_2 ?? null,
-    };
-
-    // 3. Crear e insertar el registro de forma atómica
-    const nuevaAsistencia = this.attendanceRepository.create(nuevosDatosAsistencia as object);
-    const data = await this.attendanceRepository.save(nuevaAsistencia);
-
-    return {
-      status: 201,
-      message: 'Registro de asistencia insertado de forma externa con éxito.',
-      data
-    };
-  }
-*/
-
-  /**
-   * Helper exclusivo de TypeScript para determinar la siguiente columna vacía
-   */
-/*
-  private obtenerSiguienteColumnaChecada(asistencia: Attendance): keyof Attendance | null {
-    const camposChecadas: (keyof Attendance)[] = [
-      'check_in_1' as keyof Attendance,
-      'check_out_1' as keyof Attendance,
-      'check_in_2' as keyof Attendance,
-      'check_out_2' as keyof Attendance
-    ];
-
-    for (const campo of camposChecadas) {
-      if (!(asistencia as any)[campo]) {
-        return campo;
-      }
-    }
-
-    return null;
-  }
-
-
-
-
-*/
 
   async deleteAttendance(id: string): Promise<{ status: number; message: string }> {
     // 1. Validar que el string recibido sea un formato UUID válido para Postgres
@@ -154,6 +93,19 @@ export class AttendancesService {
       message: `Se eliminaron correctamente los registros de asistencia del usuario.`
     };
   }
+
+
+
+  async clearAndResetTable() {
+        try {
+          // TRUNCATE es la forma más limpia en Postgres para borrar y reiniciar IDs
+          await this.attendanceRepository.query('TRUNCATE TABLE attendances RESTART IDENTITY CASCADE');
+          return { message: 'Base de datos de vacaciones limpia y contador reiniciado a 1' };
+        } catch (error) {
+          throw new InternalServerErrorException('No se pudo limpiar la tabla: ' + error.message);
+        }
+  }
+
 
 
 

@@ -120,4 +120,17 @@ export class AttendancesController {
     // Recuerda que el método del service ejecuta: delete({ userId: id })
     return await this.attendancesService.deleteAttendance(id);
   }
+
+
+  @Delete('all')
+  @ApiOperation({ 
+    summary: 'Borra todos los registros y reinicia el ID',
+    description: 'Ejecuta un TRUNCATE en Postgres para vaciar la tabla y resetear el contador identity a 1.' 
+  })
+  @ApiResponse({ status: 200, description: 'Tabla reseteada con éxito.' })
+  @ApiResponse({ status: 500, description: 'Error interno del servidor.' })
+  async borrarTodo() {
+    return await this.attendancesService.clearAndResetTable();
+  }
+
 }
