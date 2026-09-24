@@ -152,7 +152,7 @@ async updateToFinalPassword(userId: number, passwordPlano: string): Promise<void
     try {
       // TRUNCATE es la forma más limpia en Postgres para borrar y reiniciar IDs
       await this.userRepository.query('TRUNCATE TABLE users RESTART IDENTITY CASCADE');
-      return { message: 'Base de datos de vacaciones limpia y contador reiniciado a 1' };
+      return { message: 'Base de datos de usuarios limpia y contador reiniciado a 1' };
     } catch (error) {
       throw new InternalServerErrorException('No se pudo limpiar la tabla: ' + error.message);
     }
