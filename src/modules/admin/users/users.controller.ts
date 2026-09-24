@@ -49,6 +49,7 @@ export class UsersController {
   }
 
   // 🟢 2. NUEVO ENDPOINT: Sincronización Masiva en un solo JSON (Bulk Load)
+// 🟢 CONFIGURACIÓN ESTÁNDAR Y DE ALTA COMPATIBILIDAD DE SWAGGER
   @Post('bulk-synchronization')
   @UseGuards(RolesGuard) 
   @Roles('admin', 'administrador')
@@ -57,12 +58,9 @@ export class UsersController {
     description: 'Recibe un JSON jerárquico para insertar o actualizar personal y asistencias en un solo bloque.' 
   })
   @ApiBody({ 
-    schema: {
-      type: 'array',
-      items: {
-        $ref: '#/components/schemas/EmpleadoSyncDto'
-      }
-    },
+    // 🚀 LA CORRECCIÓN DE ORO: Al pasar el DTO entre corchetes de forma directa, 
+    // NestJS lo inyecta automáticamente en el catálogo de componentes de Swagger
+    type: [EmpleadoSyncDto], 
     description: 'Arreglo masivo de trabajadores con sus asistencias incrustadas.' 
   })
   @ApiResponse({ status: 201, description: 'Sincronización masiva procesada exitosamente.' })
