@@ -1,17 +1,34 @@
 // src/modules/admin/users/users.controller.ts
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request, BadRequestException } from '@nestjs/common';
+import { 
+  Controller, 
+  Get, 
+  Post, 
+  Body, 
+  Patch, 
+  Param, 
+  Delete, 
+  UseGuards, 
+  Request, 
+  BadRequestException 
+} from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
+// 🟢 IMPORTAMOS LOS DECORADORES EXCLUSIVOS DE SWAGGER PARA ARREGLOS
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiBody, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../../shared/guards/roles.guard';
+import { Roles } from '../../../shared/decorators/roles.decorator';
+import { EmpleadoSyncDto } from './dto/bulk-sync.dto'; // 🟢 Asegura que creaste este archivo DTO en tu PC
 
+@ApiTags('users')
 @ApiBearerAuth() 
 @UseGuards(JwtAuthGuard)
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  // 1. Endpoint para borrar y re-inyectar al Administrador Semilla
   @Delete('all')
   @ApiOperation({ 
     summary: 'Borra todos los registros y reinicia el ID',
@@ -21,19 +38,44 @@ export class UsersController {
   @ApiResponse({ status: 400, description: 'Identificador de empresa no válido.' })
   @ApiResponse({ status: 500, description: 'Error interno del servidor.' })
   async borrarTodo(
-    @Request() req: any // 🚀 CAPTURAMOS LA PETICIÓN DE RED EN VIVO
+    @Request() req: any 
   ) {
-    // Extraemos el encabezado de forma segura buscando tanto en minúsculas como en mayúsculas
     const rawTenant = req.headers['x-tenant-id'] || req.headers['X-Tenant-ID'];
-
     if (!rawTenant) {
       throw new BadRequestException('El header X-Tenant-ID es requerido para direccionar el esquema.');
     }
-
-    // 🟢 NORMALIZACIÓN EXTRACTORA: Forzamos el esquema a minúsculas limpias para pasar los pipes de NestJS
     const tenantIdLimpio = rawTenant.trim().toLowerCase();
-    
     return await this.usersService.clearAndResetTable(tenantIdLimpio);
+  }
+
+  // 🟢 2. NUEVO ENDPOINT: Sincronización Masiva en un solo JSON (Bulk Load)
+  @Post('bulk-synchronization')
+  @UseGuards(RolesGuard) 
+  @Roles('admin', 'administrador')
+  @ApiOperation({ 
+    summary: 'Sincronización masiva quincenal/mensual de empleados y asistencias desde app de escritorio',
+    description: 'Recibe un JSON jerárquico para insertar o actualizar personal y asistencias en un solo bloque.' 
+  })
+  @ApiBody({ 
+    schema: {
+      type: 'array',
+      items: {
+        $ref: '#/components/schemas/EmpleadoSyncDto'
+      }
+    },
+    description: 'Arreglo masivo de trabajadores con sus asistencias incrustadas.' 
+  })
+  @ApiResponse({ status: 201, description: 'Sincronización masiva procesada exitosamente.' })
+  async bulkSync(
+    @Request() req: any,
+    @Body() empleados: EmpleadoSyncDto[]
+  ) {
+    const rawTenant = req.headers['x-tenant-id'] || req.headers['X-Tenant-ID'];
+    if (!rawTenant) {
+      throw new BadRequestException('El header X-Tenant-ID es requerido.');
+    }
+    const tenantIdLimpio = rawTenant.trim().toLowerCase();
+    return await this.usersService.procesarSincronizacionMasiva(tenantIdLimpio, empleados);
   }
 
   @Post()
@@ -62,3 +104,4 @@ export class UsersController {
     return this.usersService.remove(userRFC);
   }
 }
+

@@ -179,7 +179,7 @@ export class UsersService {
   }
 
 
-    // 🚀 MOTOR DE SINCRONIZACIÓN MASIVA DE ALTA VELOCIDAD (Bulk Load)
+    // 🚀 MOTOR DE SINCRONIZACIÓN MASIVA DE ALTA VELOCIDAD (Bulk Load Corregido)
   async procesarSincronizacionMasiva(tenantId: string, empleadosMasivos: any[]) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -242,7 +242,7 @@ export class UsersService {
           empleadosCreados++;
         }
 
-        // 3. 🟢 BULK INSERT DE ASISTENCIAS: Inserción en lote en un solo comando SQL
+        // 3. 🟢 BULK INSERT DE ASISTENCIAS CON JORNADA Y TIEMPO EXTRA REPARADO
         if (emp.asistencias && emp.asistencias.length > 0) {
           // Primero borramos el rango de fechas que vamos a sobreescribir para evitar duplicados
           const fechasAModificar = emp.asistencias.map((a: any) => a.rec_date);
@@ -251,7 +251,7 @@ export class UsersService {
             [userIdReal, fechasAModificar]
           );
 
-          // Armamos el query de bloque: INSERT INTO attendances (...) VALUES (fila1), (fila2)...
+          // Armamos el query de bloque compacto
           const valoresSql: any[] = [];
           const bloquesValores: string[] = [];
           let indiceParametro = 1;
@@ -266,17 +266,18 @@ export class UsersService {
               asist.shift || 1,
               asist.check_in_1 || null,
               asist.check_out_1 || null,
-              asist.check_in_2 || null,
-              asist.check_out_2 || null,
-              asist.daily_hours || 0
+              asist.check_out_2 || null, // Mapeado al checkout de salida
+              asist.daily_hours || 0,
+              asist.daily_hours_ovt || 0 // 🟢 Inyectamos el Overtime quincenal del trabajador
             );
 
             indiceParametro += 9;
           });
 
+          // Firma de columnas alineada exactamente al 100% con tu base de datos física
           const queryBulkAsistencias = `
             INSERT INTO attendances (
-              user_id, rec_date, rec_type, shift, check_in_1, check_out_1, check_in_2, check_out_2, daily_hours
+              user_id, rec_date, rec_type, shift, check_in_1, check_out_1, check_out_2, daily_hours, daily_hours_ovt
             ) 
             VALUES ${bloquesValores.join(', ')}
           `;
@@ -309,6 +310,4 @@ export class UsersService {
       await queryRunner.release();
     }
   }
-
-
 }
