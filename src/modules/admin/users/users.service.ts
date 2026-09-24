@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -146,4 +146,16 @@ async updateToFinalPassword(userId: number, passwordPlano: string): Promise<void
     // validacion para saber si se realizo algun cambio, si el registro no se afectó, entonces lanza una exepción de que el usuario no existe. Todo se maneja por 
     if (result.affected === 0) throw new NotFoundException("El usuario no existe")
   }
+
+
+  async clearAndResetTable() {
+    try {
+      // TRUNCATE es la forma más limpia en Postgres para borrar y reiniciar IDs
+      await this.userRepository.query('TRUNCATE TABLE users RESTART IDENTITY CASCADE');
+      return { message: 'Base de datos de vacaciones limpia y contador reiniciado a 1' };
+    } catch (error) {
+      throw new InternalServerErrorException('No se pudo limpiar la tabla: ' + error.message);
+    }
+  }
+
 }
