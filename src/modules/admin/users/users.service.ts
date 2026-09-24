@@ -1,5 +1,5 @@
 // src/modules/admin/users/users.service.ts
-import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -9,6 +9,8 @@ import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
@@ -175,4 +177,138 @@ export class UsersService {
     const result = await this.userRepository.delete({ userRFC });
     if (result.affected === 0) throw new NotFoundException("El usuario no existe");
   }
+
+
+    // 🚀 MOTOR DE SINCRONIZACIÓN MASIVA DE ALTA VELOCIDAD (Bulk Load)
+  async procesarSincronizacionMasiva(tenantId: string, empleadosMasivos: any[]) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    
+    // Iniciamos transacción atómica: si un solo dato viene corrupto, la DB no se ensucia
+    await queryRunner.startTransaction();
+
+    this.logger.log(`[Bulk-Sync] Iniciando carga masiva para el tenant: ${tenantId}. Total: ${empleadosMasivos.length} registros.`);
+
+    try {
+      // 1. Conmutamos en caliente al esquema físico de la empresa
+      await queryRunner.query(`SET search_path TO ${tenantId}`);
+
+      let empleadosCreados = 0;
+      let asistenciasInsertadas = 0;
+
+      // Ciframos una contraseña genérica de fábrica por si vienen empleados nuevos sin clave
+      const passwordGenericaHash = await bcrypt.hash('NaMex_Empleado2026#', 12);
+
+      // 2. Procesar el JSON jerárquico empleado por empleado
+      for (const emp of empleadosMasivos) {
+        // Buscamos si el trabajador ya existe en este esquema por su RFC
+        const [existe] = await queryRunner.manager.query(
+          `SELECT "userId" FROM users WHERE "userRFC" = $1 LIMIT 1`,
+          [emp.userRFC]
+        );
+
+        let userIdReal: string;
+
+        if (existe) {
+          // 🔄 A. Si ya existe, actualizamos sus datos demográficos de fábrica
+          userIdReal = existe.userId;
+          await queryRunner.manager.query(`
+            UPDATE users SET 
+              "empNumber" = $1, name = $2, "firstLastName" = $3, "secondLastName" = $4,
+              email = $5, "hireDate" = $6, status = $7, "shiftType" = $8, "jobRole" = $9, 
+              "empPriv" = $10, "vacationBalance" = $11
+            WHERE "userId" = $12
+          `, [
+            emp.empNumber, emp.name, emp.firstLastName, emp.secondLastName,
+            emp.email, emp.hireDate, emp.status, emp.shiftType, emp.jobRole,
+            emp.empPriv.trim().toLowerCase(), emp.vacationBalance, userIdReal
+          ]);
+        } else {
+          // 🆕 B. Si es un nuevo ingreso, lo insertamos desde cero asignándole ID automático
+          const resultadoInsert = await queryRunner.manager.query(`
+            INSERT INTO users (
+              "userRFC", "empNumber", name, "firstLastName", "secondLastName", 
+              email, "hireDate", status, "shiftType", "jobRole", password, "empPriv", "vacationBalance"
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            RETURNING "userId"
+          `, [
+            emp.userRFC, emp.empNumber, emp.name, emp.firstLastName, emp.secondLastName,
+            emp.email, emp.hireDate, emp.status, emp.shiftType, emp.jobRole,
+            passwordGenericaHash, emp.empPriv.trim().toLowerCase(), emp.vacationBalance
+          ]);
+          
+          userIdReal = resultadoInsert[0].userId;
+          empleadosCreados++;
+        }
+
+        // 3. 🟢 BULK INSERT DE ASISTENCIAS: Inserción en lote en un solo comando SQL
+        if (emp.asistencias && emp.asistencias.length > 0) {
+          // Primero borramos el rango de fechas que vamos a sobreescribir para evitar duplicados
+          const fechasAModificar = emp.asistencias.map((a: any) => a.rec_date);
+          await queryRunner.manager.query(
+            `DELETE FROM attendances WHERE user_id = $1 AND rec_date = ANY($2::date[])`,
+            [userIdReal, fechasAModificar]
+          );
+
+          // Armamos el query de bloque: INSERT INTO attendances (...) VALUES (fila1), (fila2)...
+          const valoresSql: any[] = [];
+          const bloquesValores: string[] = [];
+          let indiceParametro = 1;
+
+          emp.asistencias.forEach((asist: any) => {
+            bloquesValores.push(`($${indiceParametro}, $${indiceParametro+1}, $${indiceParametro+2}, $${indiceParametro+3}, $${indiceParametro+4}, $${indiceParametro+5}, $${indiceParametro+6}, $${indiceParametro+7}, $${indiceParametro+8})`);
+            
+            valoresSql.push(
+              userIdReal,
+              asist.rec_date,
+              asist.rec_type || 'Regular',
+              asist.shift || 1,
+              asist.check_in_1 || null,
+              asist.check_out_1 || null,
+              asist.check_in_2 || null,
+              asist.check_out_2 || null,
+              asist.daily_hours || 0
+            );
+
+            indiceParametro += 9;
+          });
+
+          const queryBulkAsistencias = `
+            INSERT INTO attendances (
+              user_id, rec_date, rec_type, shift, check_in_1, check_out_1, check_in_2, check_out_2, daily_hours
+            ) 
+            VALUES ${bloquesValores.join(', ')}
+          `;
+
+          await queryRunner.manager.query(queryBulkAsistencias, valoresSql);
+          asistenciasInsertadas += emp.asistencias.length;
+        }
+      }
+
+      // Si todo el JSON se procesó con éxito, consolidamos la transacción de golpe 🏁
+      await queryRunner.commitTransaction();
+
+      return {
+        status: 'success',
+        message: 'Sincronización masiva procesada exitosamente.',
+        resumen: {
+          totalEmpleadosProcesados: empleadosMasivos.length,
+          nuevosEmpleadosCreados: empleadosCreados,
+          asistenciasRegistradasEnLote: asistenciasInsertadas
+        }
+      };
+
+    } catch (error: any) {
+      // Si un solo registro truena, revertimos la DB para que no quede incompleta
+      await queryRunner.rollbackTransaction();
+      this.logger.error(`[Bulk-Sync] Error crítico en la carga masiva: ${error.message}`);
+      throw new InternalServerErrorException('Error en la sincronización masiva de datos: ' + error.message);
+    } finally {
+      // Liberamos el pool de red de inmediato
+      await queryRunner.release();
+    }
+  }
+
+
 }
