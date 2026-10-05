@@ -19,7 +19,7 @@ import { ApiBearerAuth, ApiOperation, ApiResponse, ApiBody, ApiTags } from '@nes
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../shared/guards/roles.guard';
 import { Roles } from '../../../shared/decorators/roles.decorator';
-import { EmpleadoSyncDto } from './dto/bulk-sync.dto'; // 🟢 Asegura que creaste este archivo DTO en tu PC
+import { EmpleadoSyncDto, BulkSyncEnvelopeDto  } from './dto/bulk-sync.dto'; // 🟢 Asegura que creaste este archivo DTO en tu PC
 
 @ApiTags('users')
 @ApiBearerAuth() 
@@ -48,8 +48,9 @@ export class UsersController {
     return await this.usersService.clearAndResetTable(tenantIdLimpio);
   }
 
-  // 🟢 2. NUEVO ENDPOINT: Sincronización Masiva en un solo JSON (Bulk Load)
-// 🟢 CONFIGURACIÓN ESTÁNDAR Y DE ALTA COMPATIBILIDAD DE SWAGGER
+  
+  // 🟢 CONFIGURACIÓN ESTÁNDAR Y DE ALTA COMPATIBILIDAD DE SWAGGER
+  // 🟢 2. NUEVO ENDPOINT: Sincronización Masiva (Bulk Load Validado)
   @Post('bulk-synchronization')
   @UseGuards(RolesGuard) 
   @Roles('admin', 'administrador')
@@ -58,23 +59,24 @@ export class UsersController {
     description: 'Recibe un JSON jerárquico para insertar o actualizar personal y asistencias en un solo bloque.' 
   })
   @ApiBody({ 
-    // 🚀 LA CORRECCIÓN DE ORO: Al pasar el DTO entre corchetes de forma directa, 
-    // NestJS lo inyecta automáticamente en el catálogo de componentes de Swagger
-    type: [EmpleadoSyncDto], 
-    description: 'Arreglo masivo de trabajadores con sus asistencias incrustadas.' 
+    type: BulkSyncEnvelopeDto, 
+    description: 'Objeto contenedor con el arreglo de trabajadores.' 
   })
   @ApiResponse({ status: 201, description: 'Sincronización masiva procesada exitosamente.' })
   async bulkSync(
     @Request() req: any,
-    @Body() empleados: EmpleadoSyncDto[]
+    @Body() body: BulkSyncEnvelopeDto // 🟢 Cambiado por el DTO contenedor para activar class-validator
   ) {
     const rawTenant = req.headers['x-tenant-id'] || req.headers['X-Tenant-ID'];
     if (!rawTenant) {
       throw new BadRequestException('El header X-Tenant-ID es requerido.');
     }
     const tenantIdLimpio = rawTenant.trim().toLowerCase();
-    return await this.usersService.procesarSincronizacionMasiva(tenantIdLimpio, empleados);
+    
+    // Pasamos el arreglo interno al método del servicio que ya teníamos listo
+    return await this.usersService.procesarSincronizacionMasiva(tenantIdLimpio, body.empleados);
   }
+
 
   @Post()
   create(@Body() createUserDto: CreateUserDto) {

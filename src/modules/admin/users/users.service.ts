@@ -179,7 +179,7 @@ export class UsersService {
   }
 
 
-    // 🚀 MOTOR DE SINCRONIZACIÓN MASIVA DE ALTA VELOCIDAD (Bulk Load Corregido)
+// 🚀 MOTOR DE SINCRONIZACIÓN MASIVA DE ALTA VELOCIDAD (Bulk Load Corregido)
   async procesarSincronizacionMasiva(tenantId: string, empleadosMasivos: any[]) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -209,38 +209,46 @@ export class UsersService {
 
         let userIdReal: string;
 
+        // Mapeamos de forma segura el entero que viene del DTO
+        const startDayOfPaymentValue = emp.start_day_of_payment !== undefined ? emp.start_day_of_payment : null;
+
         if (existe) {
-          // 🔄 A. Si ya existe, actualizamos sus datos demográficos de fábrica
+          // 🔄 A. Si ya existe, actualizamos sus datos demográficos de fábrica incluyendo las columnas reales
           userIdReal = existe.userId;
           await queryRunner.manager.query(`
             UPDATE users SET 
               "empNumber" = $1, name = $2, "firstLastName" = $3, "secondLastName" = $4,
               email = $5, "hireDate" = $6, status = $7, "shiftType" = $8, "jobRole" = $9, 
-              "empPriv" = $10, "vacationBalance" = $11
-            WHERE "userId" = $12
+              "empPriv" = $10, "vacationBalance" = $11, "balanceDateTime" = $12, 
+              "start_day_of_payment" = $13, "vacationsTaken" = $14
+            WHERE "userId" = $15
           `, [
             emp.empNumber, emp.name, emp.firstLastName, emp.secondLastName,
             emp.email, emp.hireDate, emp.status, emp.shiftType, emp.jobRole,
-            emp.empPriv.trim().toLowerCase(), emp.vacationBalance, userIdReal
+            emp.empPriv.trim().toLowerCase(), emp.vacationBalance, emp.balanceDateTime || null,
+            startDayOfPaymentValue, emp.vacationsTaken || 0, userIdReal
           ]);
         } else {
           // 🆕 B. Si es un nuevo ingreso, lo insertamos desde cero asignándole ID automático
           const resultadoInsert = await queryRunner.manager.query(`
             INSERT INTO users (
               "userRFC", "empNumber", name, "firstLastName", "secondLastName", 
-              email, "hireDate", status, "shiftType", "jobRole", password, "empPriv", "vacationBalance"
+              email, "hireDate", status, "shiftType", "jobRole", password, "empPriv", 
+              "vacationBalance", "balanceDateTime", "start_day_of_payment", "vacationsTaken"
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
             RETURNING "userId"
           `, [
             emp.userRFC, emp.empNumber, emp.name, emp.firstLastName, emp.secondLastName,
             emp.email, emp.hireDate, emp.status, emp.shiftType, emp.jobRole,
-            passwordGenericaHash, emp.empPriv.trim().toLowerCase(), emp.vacationBalance
+            passwordGenericaHash, emp.empPriv.trim().toLowerCase(), emp.vacationBalance,
+            emp.balanceDateTime || null, startDayOfPaymentValue, emp.vacationsTaken || 0
           ]);
           
-          userIdReal = resultadoInsert[0].userId;
+          userIdReal = resultadoInsert[0].userId; // 🟢 Corrección: Acceso correcto al array devuelto por Postgres
           empleadosCreados++;
         }
+
 
         // 3. 🟢 BULK INSERT DE ASISTENCIAS CON JORNADA Y TIEMPO EXTRA REPARADO
         if (emp.asistencias && emp.asistencias.length > 0) {

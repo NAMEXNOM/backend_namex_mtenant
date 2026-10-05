@@ -4,6 +4,7 @@ import { Repository, Between } from 'typeorm';
 import { Attendance } from './entities/attendance.entity';
 import { UsersService } from '../users/users.service';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
+import { DataSource } from 'typeorm';
 
 @Injectable()
 export class AttendancesService {
@@ -11,6 +12,8 @@ export class AttendancesService {
     @InjectRepository(Attendance)
     private readonly attendanceRepository: Repository<Attendance>,
     private readonly usersService: UsersService,
+    // 🟢 INYECTAMOS EL DATASOURCE para poder correr QueryRunners dinámicos por esquema
+    private readonly dataSource: DataSource,
   ) {}
 
   async findRecentByUser(userId: string) {
@@ -71,17 +74,15 @@ export class AttendancesService {
     };
   }
 
-
+  // 1. BORRADO DE REGISTROS DE UN SOLO USUARIO (Individual)
   async deleteAttendance(id: string): Promise<{ status: number; message: string }> {
-    // 1. Validar que el string recibido sea un formato UUID válido para Postgres
-    const esUuidValido = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(id);
+    // Validar que el string recibido sea un formato UUID válido para Postgres
+    const esUuidValido = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\$/.test(id);
     
     if (!esUuidValido) {
       throw new BadRequestException('El ID proporcionado no es un UUID de usuario válido.');
     }
 
-    // 2. Borrar todos los registros de la tabla que pertenezcan a ese user_id
-    // 💡 NOTA: Usa "userId" o "user_id" según se llame la propiedad en tu entidad de TypeScript
     const resultado = await this.attendanceRepository.delete({ userId: id } as any);
 
     if (resultado.affected === 0) {
@@ -94,16 +95,31 @@ export class AttendancesService {
     };
   }
 
+  // 🟢 2. TRUNCATE MULTI-TENANT SEGURO (Borrado masivo por Empresa)
+  async clearAndResetTable(tenantId: string) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-
-  async clearAndResetTable() {
-        try {
-          // TRUNCATE es la forma más limpia en Postgres para borrar y reiniciar IDs
-          await this.attendanceRepository.query('TRUNCATE TABLE attendances RESTART IDENTITY CASCADE');
-          return { message: 'Base de datos de vacaciones limpia y contador reiniciado a 1' };
-        } catch (error) {
-          throw new InternalServerErrorException('No se pudo limpiar la tabla: ' + error.message);
-        }
+    try {
+      // 🚀 Conmutamos en caliente al esquema físico de la empresa que viene en las cabeceras
+      await queryRunner.query(`SET search_path TO ${tenantId}`);
+      
+      // Vaciamos la tabla de asistencias de esa empresa reiniciando los identificadores auto-incrementales
+      await queryRunner.query('TRUNCATE TABLE attendances RESTART IDENTITY CASCADE');
+      
+      await queryRunner.commitTransaction();
+      return { 
+        status: 'success',
+        message: `Base de datos de asistencias de "${tenantId}" limpia y contador reiniciado con éxito.` 
+      };
+    } catch (error: any) {
+      await queryRunner.rollbackTransaction();
+      throw new InternalServerErrorException(`No se pudo limpiar la tabla de asistencias para el tenant ${tenantId}: ` + error.message);
+    } finally {
+      // Liberamos la conexión de inmediato
+      await queryRunner.release();
+    }
   }
 
 

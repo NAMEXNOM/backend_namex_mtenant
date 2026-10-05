@@ -1,5 +1,5 @@
 import { Column, Entity, JoinTable, ManyToMany, OneToMany, PrimaryGeneratedColumn } from "typeorm";
-import { Timestamp } from "typeorm/browser";
+//import { Timestamp } from "typeorm/browser";
 import { Role } from "../../roles/entities/role.entity";
 import { Vacation } from './../../vacations/entities/vacation.entity';
 

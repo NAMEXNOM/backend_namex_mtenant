@@ -1,5 +1,5 @@
 // src/modules/admin/users/dto/bulk-sync.dto.ts
-import { IsString, IsNotEmpty, IsEmail, IsOptional, IsNumber, IsArray, ValidateNested, IsDateString } from 'class-validator';
+import { IsString, IsNotEmpty, IsEmail, IsOptional, IsNumber, IsArray, ValidateNested, IsDateString, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -93,13 +93,41 @@ export class EmpleadoSyncDto {
   @IsNotEmpty()
   empPriv: string;
 
-  @ApiProperty({ example: 12.00, description: 'Saldo actual de vacaciones' })
+  @ApiProperty({ example: 12.00, description: 'Saldo actual de vacaciones disponibles' })
   @IsNumber()
   vacationBalance: number;
+
+  // 🟢 NUEVO CAMPO: Registro de auditoría/Corte de las vacaciones
+  @ApiProperty({ example: '2026-10-01 12:00:00', description: 'Última actualización del balance', required: false })
+  @IsString()
+  @IsOptional()
+  balanceDateTime?: string;
+
+  // 🟢 NUEVO CAMPO: Parametrización del día de inicio de pago quincenal/semanal
+  @IsOptional()
+  @IsNumber({}, { message: 'start_day_of_payment debe ser un número entero' })
+  @Type(() => Number) // Asegura la conversión si viene como string en el payload
+  @Min(1)
+  @Max(7)
+  start_day_of_payment?: number;
+
+  // 🟢 NUEVO CAMPO: Total de días gozados por el empleado
+  @ApiProperty({ example: 3.00, description: 'Días de vacaciones tomadas históricas', required: false })
+  @IsNumber()
+  @IsOptional()
+  vacationsTaken?: number;
 
   @ApiProperty({ type: [AsistenciaSyncDto], description: 'Listado quincenal o mensual de sus asistencias' })
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => AsistenciaSyncDto)
   asistencias: AsistenciaSyncDto[];
+}
+
+export class BulkSyncEnvelopeDto {
+  @ApiProperty({ type: [EmpleadoSyncDto], description: 'Arreglo masivo de trabajadores con sus asistencias incrustadas.' })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => EmpleadoSyncDto)
+  empleados: EmpleadoSyncDto[];
 }
