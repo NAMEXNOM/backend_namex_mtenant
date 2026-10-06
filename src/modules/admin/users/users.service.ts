@@ -220,7 +220,7 @@ export class UsersService {
               "empNumber" = $1, name = $2, "firstLastName" = $3, "secondLastName" = $4,
               email = $5, "hireDate" = $6, status = $7, "shiftType" = $8, "jobRole" = $9, 
               "empPriv" = $10, "vacationBalance" = $11, "balanceDateTime" = $12, 
-              "start_day_of_payment" = $13, "vacationsTaken" = $14
+              "start_day_of_payment" = $13, "vacations_taken" = $14
             WHERE "userId" = $15
           `, [
             emp.empNumber, emp.name, emp.firstLastName, emp.secondLastName,
@@ -234,7 +234,7 @@ export class UsersService {
             INSERT INTO users (
               "userRFC", "empNumber", name, "firstLastName", "secondLastName", 
               email, "hireDate", status, "shiftType", "jobRole", password, "empPriv", 
-              "vacationBalance", "balanceDateTime", "start_day_of_payment", "vacationsTaken"
+              "vacationBalance", "balanceDateTime", "start_day_of_payment", "vacations_taken"
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
             RETURNING "userId"
