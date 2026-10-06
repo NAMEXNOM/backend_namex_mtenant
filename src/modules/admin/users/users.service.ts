@@ -250,7 +250,7 @@ export class UsersService {
         }
 
 
-        // 3. 🟢 BULK INSERT DE ASISTENCIAS CON JORNADA Y TIEMPO EXTRA REPARADO
+        // 3. 🟢 BULK INSERT DE ASISTENCIAS CON 4 CHECADAS E INCIDENCIAS CORREGIDAS
         if (emp.asistencias && emp.asistencias.length > 0) {
           // Primero borramos el rango de fechas que vamos a sobreescribir para evitar duplicados
           const fechasAModificar = emp.asistencias.map((a: any) => a.rec_date);
@@ -265,27 +265,34 @@ export class UsersService {
           let indiceParametro = 1;
 
           emp.asistencias.forEach((asist: any) => {
-            bloquesValores.push(`($${indiceParametro}, $${indiceParametro+1}, $${indiceParametro+2}, $${indiceParametro+3}, $${indiceParametro+4}, $${indiceParametro+5}, $${indiceParametro+6}, $${indiceParametro+7}, $${indiceParametro+8})`);
+            // Generamos dinámicamente un bloque de 11 parámetros (\$1 hasta \$11 por fila)
+            bloquesValores.push(`(
+              $${indiceParametro}, $${indiceParametro+1}, $${indiceParametro+2}, $${indiceParametro+3}, 
+              $${indiceParametro+4}, $${indiceParametro+5}, $${indiceParametro+6}, $${indiceParametro+7}, 
+              $${indiceParametro+8}, $${indiceParametro+9}, $${indiceParametro+10}
+            )`);
             
             valoresSql.push(
               userIdReal,
               asist.rec_date,
               asist.rec_type || 'Regular',
               asist.shift || 1,
+              asist.incidentId || null,      // Mapea la propiedad del DTO
               asist.check_in_1 || null,
               asist.check_out_1 || null,
-              asist.check_out_2 || null, // Mapeado al checkout de salida
+              asist.check_in_2 || null,      // Segunda checada de entrada
+              asist.check_out_2 || null,     // Segunda checada de salida
               asist.daily_hours || 0,
-              asist.daily_hours_ovt || 0 // 🟢 Inyectamos el Overtime quincenal del trabajador
+              asist.daily_hours_ovt || 0     // Overtime
             );
 
-            indiceParametro += 9;
+            indiceParametro += 11; // 🚀 Brincamos de 11 en 11 parámetros (son 11 campos por fila)
           });
 
-          // Firma de columnas alineada exactamente al 100% con tu base de datos física
+          // 🟢 CORREGIDO: incident_id en snake_case sin comillas dobles
           const queryBulkAsistencias = `
             INSERT INTO attendances (
-              user_id, rec_date, rec_type, shift, check_in_1, check_out_1, check_out_2, daily_hours, daily_hours_ovt
+              user_id, rec_date, rec_type, shift, incident_id, check_in_1, check_out_1, check_in_2, check_out_2, daily_hours, daily_hours_ovt
             ) 
             VALUES ${bloquesValores.join(', ')}
           `;

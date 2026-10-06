@@ -1,4 +1,3 @@
-// src/modules/admin/users/dto/bulk-sync.dto.ts
 import { IsString, IsNotEmpty, IsEmail, IsOptional, IsNumber, IsArray, ValidateNested, IsDateString, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
@@ -18,6 +17,11 @@ export class AsistenciaSyncDto {
   @IsNumber()
   shift: number;
 
+  @ApiProperty({ example: 'VAC', description: 'ID o código de la incidencia si aplica', required: false })
+  @IsString()
+  @IsOptional()
+  incidentId?: string;
+
   @ApiProperty({ example: '08:00:00', required: false })
   @IsString()
   @IsOptional()
@@ -27,6 +31,16 @@ export class AsistenciaSyncDto {
   @IsString()
   @IsOptional()
   check_out_1?: string;
+
+  @ApiProperty({ example: '12:00:00', required: false, description: 'Segunda checada de entrada si aplica' })
+  @IsString()
+  @IsOptional()
+  check_in_2?: string;
+
+  @ApiProperty({ example: '13:00:00', required: false, description: 'Segunda checada de salida si aplica' })
+  @IsString()
+  @IsOptional()
+  check_out_2?: string;
 
   @ApiProperty({ example: 8.00, description: 'Horas laboradas normales' })
   @IsNumber()
@@ -97,21 +111,19 @@ export class EmpleadoSyncDto {
   @IsNumber()
   vacationBalance: number;
 
-  // 🟢 NUEVO CAMPO: Registro de auditoría/Corte de las vacaciones
   @ApiProperty({ example: '2026-10-01 12:00:00', description: 'Última actualización del balance', required: false })
   @IsString()
   @IsOptional()
   balanceDateTime?: string;
 
-  // 🟢 NUEVO CAMPO: Parametrización del día de inicio de pago quincenal/semanal
+  @ApiProperty({ example: 1, description: 'Día de inicio de pago (1 = Lunes, 7 = Domingo)', required: false })
   @IsOptional()
   @IsNumber({}, { message: 'start_day_of_payment debe ser un número entero' })
-  @Type(() => Number) // Asegura la conversión si viene como string en el payload
+  @Type(() => Number)
   @Min(1)
   @Max(7)
   start_day_of_payment?: number;
 
-  // 🟢 NUEVO CAMPO: Total de días gozados por el empleado
   @ApiProperty({ example: 3.00, description: 'Días de vacaciones tomadas históricas', required: false })
   @IsNumber()
   @IsOptional()
