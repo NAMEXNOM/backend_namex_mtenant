@@ -148,25 +148,62 @@ export class VacationsService {
   findAll() { return this.vacationRepository.find(); }
   findOne(id: number) { return `This action returns a #${id} vacation`; }
 
-  // 🟢 REPARADO: Formateador para anular el desfase por zona horaria de JavaScript
-  async findAllByUser(userId: string) { 
-    const vacations = await this.vacationRepository.find({ where: { userId }, order: { fechaInicio: 'DESC' } }); 
-    return vacations.map((v) => ({
-      ...v,
-      fechaInicio: v.fechaInicio instanceof Date ? v.fechaInicio.toISOString().split('T')[0] : v.fechaInicio,
-      fechaFinal: v.fechaFinal instanceof Date ? v.fechaFinal.toISOString().split('T')[0] : v.fechaFinal,
-    }));
+    // 🟢 REPARADO DEFINITIVO: Consulta con SQL Nativo para congelar el huso horario
+  async findAllByUser(userId: string): Promise<any[]> { 
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    
+    try {
+      // Obtenemos el esquema del manager o asumimos que se consulta sobre el esquema actual del pool
+      // Para asegurar multi-tenant, extraemos las vacaciones formateando las fechas desde la DB
+      return await queryRunner.query(`
+        SELECT 
+          "vacationId",
+          "userId",
+          "period",
+          "recordType",
+          TO_CHAR("fechaInicio", 'YYYY-MM-DD') as "fechaInicio",
+          TO_CHAR("fechaFinal", 'YYYY-MM-DD') as "fechaFinal",
+          "vacationDays"
+        FROM vacations 
+        WHERE "userId" = $1 
+        ORDER BY "fechaInicio" DESC
+      `, [userId]);
+    } catch (error: any) {
+      this.logger.error(`Error al obtener vacaciones: ${error.message}`);
+      throw new InternalServerErrorException('No se pudieron consultar las vacaciones.');
+    } finally {
+      await queryRunner.release();
+    }
   }
 
-  // 🟢 REPARADO: Formateador idéntico para la búsqueda directa de la vista del usuario
+  // 🟢 REPARADO DEFINITIVO: Consulta idéntica para la vista del usuario final
   async findAllByUserId(userId: string): Promise<any[]> { 
-    const vacations = await this.vacationRepository.find({ where: { userId }, order: { fechaInicio: 'DESC' } }); 
-    return vacations.map((v) => ({
-      ...v,
-      fechaInicio: v.fechaInicio instanceof Date ? v.fechaInicio.toISOString().split('T')[0] : v.fechaInicio,
-      fechaFinal: v.fechaFinal instanceof Date ? v.fechaFinal.toISOString().split('T')[0] : v.fechaFinal,
-    }));
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    
+    try {
+      return await queryRunner.query(`
+        SELECT 
+          "vacationId",
+          "userId",
+          "period",
+          "recordType",
+          TO_CHAR("fechaInicio", 'YYYY-MM-DD') as "fechaInicio",
+          TO_CHAR("fechaFinal", 'YYYY-MM-DD') as "fechaFinal",
+          "vacationDays"
+        FROM vacations 
+        WHERE "userId" = $1 
+        ORDER BY "fechaInicio" DESC
+      `, [userId]);
+    } catch (error: any) {
+      this.logger.error(`Error al obtener vacaciones por ID: ${error.message}`);
+      throw new InternalServerErrorException('No se pudieron consultar las vacaciones del usuario.');
+    } finally {
+      await queryRunner.release();
+    }
   }
+
 
   update(id: number, updateVacationDto: UpdateVacationDto) { return `This action updates a #${id} vacation`; }
   async remove(userId: string) { const result = await this.vacationRepository.delete({userId}); if (result.affected === 0) throw new NotFoundException("El usuario no existe"); }
