@@ -3,7 +3,7 @@ import { BadRequestException, Injectable, InternalServerErrorException, Logger, 
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, ILike } from 'typeorm';
 import { User } from './entities/user.entity';
 import * as bcrypt from 'bcrypt';
 
@@ -143,10 +143,13 @@ export class UsersService {
   }
 
   async findByRfcAndEmail(userRFC: string, email: string) {
-    return await this.userRepository.findOne({
-      where: { userRFC, email } 
-    });
-  }
+  return await this.userRepository.findOne({
+    where: { 
+      userRFC: userRFC, // El RFC se queda estricto o igual puedes usar ILike si aplica
+      email: ILike(email.trim()) // 🟢 Compara ignorando mayúsculas/minúsculas y limpia espacios
+    } 
+  });
+}
 
   async setTemporaryPassword(userId: string, tempPasswordPlain: string) {
     const hashPassword = await bcrypt.hash(tempPasswordPlain, 12);

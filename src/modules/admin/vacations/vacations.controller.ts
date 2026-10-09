@@ -157,7 +157,5 @@ export class VacationsController {
   remove(@Param('userId') userId: string) {
     return this.vacationsService.remove(userId);
   }
-
-
 }
 */
