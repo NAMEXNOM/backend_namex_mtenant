@@ -39,7 +39,7 @@ export class AuthController {
   */
 
 
-import { Controller, Post, Body } from '@nestjs/common';
+import { Controller, Post, Body, Request } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { LoginAuthDto } from './dto/login-auth.dto'; 
@@ -50,6 +50,23 @@ import { ChangePasswordDto } from './dto/change-password.dto'; // 🟢 Importamo
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+
+@Post('login')
+  @ApiOperation({ summary: 'Iniciar sesión con RFC de usuario' })
+  @ApiResponse({ status: 200, description: 'Login exitoso. Devuelve token de acceso.' })
+  @ApiResponse({ status: 401, description: 'Credenciales inválidas.' })
+  async login(
+    @Request() req: any, // 🟢 Inyectamos la petición HTTP para capturar cabeceras de red
+    @Body() loginAuthDto: LoginAuthDto
+  ) {
+    // 🚀 Extraemos de forma segura el Tenant ID sin importar mayúsculas o minúsculas en el header
+    const rawTenant = req.headers['x-tenant-id'] || req.headers['X-Tenant-ID'];
+    const tenantIdLimpio = rawTenant ? rawTenant.trim().toLowerCase() : null;
+
+    // 🟢 Pasamos las credenciales y el Tenant ID extraído directo al servicio
+    return await this.authService.login(loginAuthDto, tenantIdLimpio);
+  }
+  /*
   @Post('login')
   @ApiOperation({ summary: 'Iniciar sesión con RFC de usuario' })
   @ApiResponse({ status: 200, description: 'Login exitoso. Devuelve token de acceso.' })
@@ -57,6 +74,7 @@ export class AuthController {
   async login(@Body() loginAuthDto: LoginAuthDto) {
     return await this.authService.login(loginAuthDto);
   }
+*/
 
   @Post('recover-password')
   @ApiOperation({ summary: 'Recuperar contraseña (Emite contraseña temporal)' })

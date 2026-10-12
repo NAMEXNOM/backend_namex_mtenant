@@ -14,10 +14,51 @@ export class AuthService {
     private readonly dataSource: DataSource
   ) {}
 
+// 🟢 Recibimos el tenantId extraído del header del controlador
+async login(body: any, tenantId?: string) { 
+  const { userRFC, password } = body;
+
+  if (!userRFC || !password) {
+    throw new UnauthorizedException('RFC y contraseña son requeridos');
+  }
+
+  // 1. Buscamos al usuario en el esquema que esté activo en el pool global
+  const user = await this.usersService.findOneByRfc(userRFC);
+
+  if (!user || !user.password) {
+    throw new UnauthorizedException('RFC o contraseña incorrectos'); 
+  }
+
+  const passwordValido = await bcrypt.compare(password, user.password);
+  
+  if (!passwordValido) {
+    throw new UnauthorizedException('RFC o contraseña incorrectos'); 
+  }
+
+  // 🟢 CORREGIDO: Usamos el tenantId del header. Si no viene, usamos 'sgi' como respaldo del servidor dedicado
+  const schemaName = tenantId || 'sgi'; 
+  const queryRunner = this.dataSource.createQueryRunner();
+  await queryRunner.connect();
+  
+  let empPrivReal = 'usuario';
+  try {
+    // Conmutamos de forma segura al esquema real de la empresa
+    await queryRunner.query(`SET search_path TO ${schemaName}`);
+    const [dbUser] = await queryRunner.manager.query(
+      `SELECT "empPriv" FROM users WHERE "userRFC" = $1 LIMIT 1`,
+      [user.userRFC]
+    );
+    if (dbUser) {
+      empPrivReal = dbUser.empPriv;
+    }
+  } finally {
+    await queryRunner.release();
+  }
+
+/*
+
   async login(body: any) {
     const { userRFC, password } = body;
-
-
 
     if (!userRFC || !password) {
       throw new UnauthorizedException('RFC y contraseña son requeridos');
@@ -35,7 +76,6 @@ export class AuthService {
 
     // Comparamos el texto plano del formulario contra el hash de la base de datos
     const passwordValido = await bcrypt.compare(password, user.password);
-    
 
     if (!passwordValido) {
       throw new UnauthorizedException('RFC o contraseña incorrectos'); 
@@ -61,7 +101,7 @@ export class AuthService {
     } finally {
       await queryRunner.release();
     }
-
+*/
 
     const nombreCompleto = `${user.name || ''} ${user.firstLastName || ''} ${user.secondLastName || ''}`.trim();
     
