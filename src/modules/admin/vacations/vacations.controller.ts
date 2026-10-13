@@ -3,13 +3,13 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req, Quer
 import { VacationsService } from './vacations.service';
 import { CreateVacationDto } from './dto/create-vacation.dto';
 import { UpdateVacationDto } from './dto/update-vacation.dto';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiBody } from '@nestjs/swagger'; // 🟢 Agregados ApiTags y ApiBody
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiBody } from '@nestjs/swagger'; 
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard'; 
-import { RolesGuard } from '../../../shared/guards/roles.guard'; // 🟢 Guardian de roles
-import { Roles } from '../../../shared/decorators/roles.decorator'; // 🟢 Decorador de roles
-import { VacationsBulkEnvelopeDto } from './dto/vacations-bulk.dto'; // 🟢 Importamos el DTO Contenedor
+import { RolesGuard } from '../../../shared/guards/roles.guard'; 
+import { Roles } from '../../../shared/decorators/roles.decorator'; 
+import { VacationsBulkEnvelopeDto } from './dto/vacations-bulk.dto'; 
 
-@ApiTags('Vacations (Vacaciones)') // 🟢 Organiza la UI de Swagger de forma limpia
+@ApiTags('Vacations (Vacaciones)') 
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard) 
 @Controller('vacations')
@@ -42,12 +42,16 @@ export class VacationsController {
   }
 
   @Post()
+  @UseGuards(RolesGuard) // 🟢 BLINDADO: Solo administradores agregan vacaciones individuales
+  @Roles('admin', 'administrador')
   create(@Body() createVacationDto: CreateVacationDto) {
     return this.vacationsService.create(createVacationDto);
   }
 
   // 🟢 2. ELIMINACIÓN MASIVA POR TENANT (MOVIDO ARRIBA PARA EVITAR CONFLICTOS)
   @Delete('all')
+  @UseGuards(RolesGuard) // 🟢 BLINDADO: Activa el policía de roles
+  @Roles('admin', 'administrador') // 🚫 BLINDADO: Bloqueo estricto ante purgas masivas de la base de datos
   @ApiOperation({ 
     summary: 'Borra todos los registros y reinicia el ID',
     description: 'Ejecuta un TRUNCATE direccionado al esquema del Tenant para vaciar la tabla y resetear el contador identity a 1.' 
@@ -55,7 +59,7 @@ export class VacationsController {
   @ApiResponse({ status: 200, description: 'Tabla reseteada con éxito.' })
   @ApiResponse({ status: 400, description: 'Identificador de empresa no válido.' })
   @ApiResponse({ status: 500, description: 'Error interno del servidor.' })
-  async borrarTodo(@Req() req: any) { // 🟢 Inyectamos Req para extraer el Tenant de las cabeceras
+  async borrarTodo(@Req() req: any) { 
     const rawTenant = req.headers['x-tenant-id'] || req.headers['X-Tenant-ID'];
     if (!rawTenant) {
       throw new BadRequestException('El header X-Tenant-ID es requerido para direccionar el esquema.');
@@ -66,16 +70,21 @@ export class VacationsController {
 
   // URL: GET http://localhost:5000/vacations/user?userId=VALOR
   @Get('user')
+  // 💡 Libre de roles: Los empleados comunes necesitan consultar sus propios saldos en el portal web
   async getVacationsByUserId(@Query('userId') userId: string) {
     return await this.vacationsService.findAllByUserId(userId);
   }
 
   @Get()
+  @UseGuards(RolesGuard) // 🟢 BLINDADO: Evita que empleados comuns listen el historial global corporativo
+  @Roles('admin', 'administrador', 'rh')
   findAll() {
     return this.vacationsService.findAll();
   }
 
   @Get(':userId')
+  @UseGuards(RolesGuard) // 🟢 BLINDADO: Solo personal autorizado puede auditar las vacaciones de un empleado por ID
+  @Roles('admin', 'administrador', 'rh')
   @ApiOperation({ 
     summary: 'Busca un userId específico',
     description: 'Devuelve todos los valores coincidentes con el userId'
@@ -86,11 +95,14 @@ export class VacationsController {
 
   // 🔴 3. ELIMINACIÓN INDIVIDUAL POR USUARIO (MOVIDO ABAJO)
   @Delete(':userId')
+  @UseGuards(RolesGuard) // 🟢 BLINDADO: Activa el policía de roles
+  @Roles('admin', 'administrador') // 🚫 BLINDADO: Evita que un empleado elimine el historial de vacaciones de otro compañero
   @ApiOperation({ summary: 'Borra todos los detalles de vacaciones de un userId específico'})
   remove(@Param('userId') userId: string) {
     return this.vacationsService.remove(userId);
   }
 }
+
 
 
 
