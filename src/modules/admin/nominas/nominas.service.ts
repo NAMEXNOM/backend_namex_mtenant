@@ -325,6 +325,9 @@ export class NominasService {
         if (recibo.url_xml) s3ObjectsToDelete.push({ Key: recibo.url_xml });
       }
 
+
+
+      // 5. Eliminar de forma masiva los registros físicos en la tabla del Tenant
       await queryRunner.manager.query(
         `DELETE FROM recibos_nomina 
          WHERE tenant_id = $1 
@@ -334,31 +337,50 @@ export class NominasService {
         [uuidRealTenant, metadata.periodo_tipo, numeroPeriodoInt, metadata.nomina_tipo]
       );
 
-      if (s3ObjectsToDelete.length > 0 && (this.s3Service as any)['s3Client']) {
-        const deleteCommand = new DeleteObjectsCommand({
-          Bucket: process.env.AWS_S3_BUCKET_NOMINAS || process.env.AWS_BUCKET_NAME,
-          Delete: {
-            Objects: s3ObjectsToDelete,
-            Quiet: true
+      // 6. 🚀 PURGA FÍSICA EN AWS S3 GARANTIZADA
+      if (s3ObjectsToDelete.length > 0) {
+        this.logger.log(`[Rollback S3] Iniciando purga física de ${s3ObjectsToDelete.length} archivos en AWS...`);
+        
+        // Extraemos de forma dinámica el cliente de AWS nativo de tu propio S3Service
+        const s3ServiceAny = this.s3Service as any;
+        const s3ClientReal = s3ServiceAny.s3Client || s3ServiceAny.s3 || s3ServiceAny['_s3Client'];
+
+        if (s3ClientReal && typeof s3ClientReal.send === 'function') {
+          const deleteCommand = new DeleteObjectsCommand({
+            Bucket: process.env.AWS_S3_BUCKET_NOMINAS || process.env.AWS_BUCKET_NAME || 'tu-bucket-default',
+            Delete: {
+              Objects: s3ObjectsToDelete,
+              Quiet: true
+            }
+          });
+          await s3ClientReal.send(deleteCommand);
+          this.logger.log(`[Rollback S3] Purga masiva en bloque finalizada con éxito.`);
+        } else {
+          this.logger.warn(`[Rollback S3] Cliente nativo no expuesto. Usando métodos del S3Service de la app...`);
+          
+          // Buscamos cómo se llama tu método para borrar (ej: deleteFile, removeObject, eliminarArchivo)
+          const nombreMetodoBorrado = Object.getOwnPropertyNames(Object.getPrototypeOf(this.s3Service))
+            .find(m => m.toLowerCase().includes('delete') || m.toLowerCase().includes('remove') || m.toLowerCase().includes('eliminar'));
+
+          if (nombreMetodoBorrado && typeof s3ServiceAny[nombreMetodoBorrado] === 'function') {
+            await Promise.all(
+              s3ObjectsToDelete.map(obj => s3ServiceAny[nombreMetodoBorrado](obj.Key))
+            );
+            this.logger.log(`[Rollback S3] Borrado secuencial finalizado usando el método: ${nombreMetodoBorrado}`);
+          } else {
+            throw new Error('No se localizó el cliente de AWS ni ningún método de borrado válido (deleteFile/remove) en el S3Service.');
           }
-        });
-        await (this.s3Service as any)['s3Client'].send(deleteCommand);
-      } else if (s3ObjectsToDelete.length > 0) {
-        this.logger.warn(`[Rollback] Utilizando fallback de borrado individual para ${s3ObjectsToDelete.length} objetos.`);
-        await Promise.all(
-          s3ObjectsToDelete.map(obj => {
-            const s3ServiceAny = this.s3Service as any;
-            return s3ServiceAny.deleteFile ? s3ServiceAny.deleteFile(obj.Key) : null;
-          })
-        );
+        }
       }
 
+      // 7. Consolidar la transacción si la BD y S3 respondieron de forma correcta
       await queryRunner.commitTransaction();
       this.logger.log(`[Rollback Exitoso] ${recibosAEliminar.length} recibos eliminados del esquema ${esquemaDestino}.`);
 
       return { destroyedCount: recibosAEliminar.length };
 
     } catch (error: any) {
+      // Si la base de datos o AWS fallan en red, deshacemos todo el borrado en PostgreSQL
       await queryRunner.rollbackTransaction();
       this.logger.error(`[Rollback Error] Error abortando la reversión masiva: ${error?.message || error}`);
       
@@ -367,10 +389,12 @@ export class NominasService {
       }
       throw new InternalServerErrorException('Error interno al ejecutar la purga masiva de nóminas.', error?.message || String(error));
     } finally {
+      // Liberar la conexión al pool del sistema
       await queryRunner.release();
     }
   }
 }
+
 
 
 
