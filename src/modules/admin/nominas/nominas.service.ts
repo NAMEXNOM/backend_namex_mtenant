@@ -246,15 +246,49 @@ export class NominasService {
     }
   }
 
+  // 🔄 NUEVO MÉTODO: CONSULTAR PERIODOS EXISTENTES DE FORMA DINÁMICA PARA EL DROPDOWN
+  async listarPeriodosConRecibos(tenantIdHeader: string): Promise<any[]> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
 
-    // 🔄 NUEVO MÉTODO: REVERSIÓN ATÓMICA Y MULTI-TENANT (CORAZÓN DEL REVERSOR)
+    try {
+      const [empresaGlobal] = await queryRunner.manager.query(
+        `SELECT id, "schema_name" FROM public.companies WHERE "schema_name" = $1 LIMIT 1`,
+        [tenantIdHeader]
+      );
+
+      if (!empresaGlobal) {
+        throw new UnauthorizedException(`La empresa '${tenantIdHeader}' no está registrada.`);
+      }
+
+      await queryRunner.query(`SET search_path TO ${empresaGlobal.schema_name}`);
+
+      const queryResult = await queryRunner.manager.query(
+        `SELECT DISTINCT periodo_tipo, numero_periodo, nomina_tipo 
+         FROM recibos_nomina 
+         WHERE tenant_id = $1
+         ORDER BY periodo_tipo, numero_periodo DESC`,
+        [empresaGlobal.id]
+      );
+
+      return queryResult.map((p: any) => {
+        const idConcatenado = `${p.periodo_tipo}-${p.numero_periodo}-${p.nomina_tipo}`;
+        const nombreVisual = `${p.periodo_tipo} - Periodo ${p.numero_periodo} (${p.nomina_tipo})`;
+        return { id: idConcatenado, nombre: nombreVisual };
+      });
+
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  // 🔄 NUEVO MÉTODO: REVERSIÓN ATÓMICA Y MULTI-TENANT (CORAZÓN DEL REVERSOR)
   async revertirPeriodoMultiTenant(tenantIdHeader: string, metadata: RollbackNominaDto): Promise<{ destroyedCount: number }> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
-      // 1. Validar la existencia de la empresa en el catálogo maestro público
       const [empresaGlobal] = await queryRunner.manager.query(
         `SELECT id, "schema_name" FROM public.companies WHERE "schema_name" = $1 LIMIT 1`,
         [tenantIdHeader]
@@ -267,10 +301,8 @@ export class NominasService {
       const uuidRealTenant = empresaGlobal.id;
       const esquemaDestino = empresaGlobal.schema_name;
 
-      // 2. Conmutar el search_path de PostgreSQL al esquema físico del cliente
       await queryRunner.query(`SET search_path TO ${esquemaDestino}`);
 
-      // 3. Extraer los archivos del periodo antes de borrarlos de la BD
       const numeroPeriodoInt = parseInt(metadata.numero_periodo, 10);
       const recibosAEliminar = await queryRunner.manager.query(
         `SELECT id, url_pdf, url_xml FROM recibos_nomina 
@@ -287,14 +319,12 @@ export class NominasService {
         );
       }
 
-      // 4. Mapear las claves (Keys) de S3 correspondientes a los PDFs y XMLs
       const s3ObjectsToDelete: { Key: string }[] = [];
       for (const recibo of recibosAEliminar) {
         if (recibo.url_pdf) s3ObjectsToDelete.push({ Key: recibo.url_pdf });
         if (recibo.url_xml) s3ObjectsToDelete.push({ Key: recibo.url_xml });
       }
 
-      // 5. Eliminar de forma masiva los registros físicos en la tabla del Tenant
       await queryRunner.manager.query(
         `DELETE FROM recibos_nomina 
          WHERE tenant_id = $1 
@@ -304,7 +334,6 @@ export class NominasService {
         [uuidRealTenant, metadata.periodo_tipo, numeroPeriodoInt, metadata.nomina_tipo]
       );
 
-      // 6. Si existen archivos en la lista, purgar físicamente en AWS S3
       if (s3ObjectsToDelete.length > 0 && (this.s3Service as any)['s3Client']) {
         const deleteCommand = new DeleteObjectsCommand({
           Bucket: process.env.AWS_S3_BUCKET_NOMINAS || process.env.AWS_BUCKET_NAME,
@@ -313,11 +342,8 @@ export class NominasService {
             Quiet: true
           }
         });
-        
-        // Ejecutamos la petición directo al cliente nativo inyectado en tu S3Service
         await (this.s3Service as any)['s3Client'].send(deleteCommand);
       } else if (s3ObjectsToDelete.length > 0) {
-        // Fallback secundario si tu S3Service no expone s3Client directamente (Tipado con any)
         this.logger.warn(`[Rollback] Utilizando fallback de borrado individual para ${s3ObjectsToDelete.length} objetos.`);
         await Promise.all(
           s3ObjectsToDelete.map(obj => {
@@ -327,14 +353,12 @@ export class NominasService {
         );
       }
 
-      // 7. Consolidar la transacción si la BD y S3 respondieron de forma correcta
       await queryRunner.commitTransaction();
       this.logger.log(`[Rollback Exitoso] ${recibosAEliminar.length} recibos eliminados del esquema ${esquemaDestino}.`);
 
       return { destroyedCount: recibosAEliminar.length };
 
     } catch (error: any) {
-      // Si la base de datos o AWS fallan en red, deshacemos todo el borrado en PostgreSQL
       await queryRunner.rollbackTransaction();
       this.logger.error(`[Rollback Error] Error abortando la reversión masiva: ${error?.message || error}`);
       
@@ -343,11 +367,11 @@ export class NominasService {
       }
       throw new InternalServerErrorException('Error interno al ejecutar la purga masiva de nóminas.', error?.message || String(error));
     } finally {
-      // Liberar la conexión al pool del sistema
       await queryRunner.release();
     }
   }
 }
+
 
 
 
