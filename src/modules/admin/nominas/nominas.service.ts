@@ -246,7 +246,7 @@ export class NominasService {
     }
   }
 
-   // 🔄 CONSULTAR ÚNICAMENTE LA ÚLTIMA SUBIDA MASIVA REALIZADA (LIMIT 1)
+  // 🔄 CONSULTAR ÚNICAMENTE LA ÚLTIMA SUBIDA MASIVA REALIZADA (POSTGRES REPARADO)
   async listarPeriodosConRecibos(tenantIdHeader: string): Promise<any[]> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -265,14 +265,13 @@ export class NominasService {
       // 2. Conmutar al esquema del Tenant
       await queryRunner.query(`SET search_path TO ${empresaGlobal.schema_name}`);
 
-      // 3. Modificamos la query: Agrupamos y ordenamos por el ID máximo (el más reciente) limitando a 1
+      // 3. Query reparada: Seleccionamos el último periodo ordenando por la fecha de pago o inserción descendente
       const queryResult = await queryRunner.manager.query(
-        `SELECT periodo_tipo, numero_periodo, nomina_tipo, MAX(id) as max_id
+        `SELECT periodo_tipo, numero_periodo, nomina_tipo 
          FROM recibos_nomina 
          WHERE tenant_id = $1
-         GROUP BY periodo_tipo, numero_periodo, nomina_tipo
-         ORDER BY max_id DESC
-         LIMIT 1`, // 🚀 RESTRECCIÓN ESTRICTA: Solo expone el último periodo cargado
+         ORDER BY fecha_pago DESC, numero_periodo DESC
+         LIMIT 1`, // 🚀 Solo el primer registro (El más reciente de todos)
         [empresaGlobal.id]
       );
 
@@ -290,6 +289,7 @@ export class NominasService {
       await queryRunner.release();
     }
   }
+
 
 
   // 🔄 NUEVO MÉTODO: REVERSIÓN ATÓMICA Y MULTI-TENANT (CORAZÓN DEL REVERSOR)
