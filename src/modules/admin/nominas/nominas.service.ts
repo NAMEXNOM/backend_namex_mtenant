@@ -347,11 +347,10 @@ export class NominasService {
         [uuidRealTenant, metadata.periodo_tipo, numeroPeriodoInt, metadata.nomina_tipo]
       );
 
-      // 6. 🚀 PURGA FÍSICA EN AWS S3 GARANTIZADA
+      // 6. 🚀 PURGA FÍSICA EN AWS S3 COMPACTA Y ULTRA RÁPIDA
       if (s3ObjectsToDelete.length > 0) {
         this.logger.log(`[Rollback S3] Iniciando purga física de ${s3ObjectsToDelete.length} archivos en AWS...`);
         
-        // Extraemos de forma dinámica el cliente de AWS nativo de tu propio S3Service
         const s3ServiceAny = this.s3Service as any;
         const s3ClientReal = s3ServiceAny.s3Client || s3ServiceAny.s3 || s3ServiceAny['_s3Client'];
 
@@ -360,24 +359,21 @@ export class NominasService {
             Bucket: process.env.AWS_S3_BUCKET_NOMINAS || process.env.AWS_BUCKET_NAME || 'tu-bucket-default',
             Delete: {
               Objects: s3ObjectsToDelete,
-              //Quiet: true
-              Quiet: false
+              Quiet: true // 🚀 ACTIVADO: S3 ya no gasta ancho de banda mandando miles de confirmaciones exitosas
             }
           });
-          // await s3ClientReal.send(deleteCommand);
           
-          // 🛠️ Bloque de auditoría temporal:
           const respuestaS3 = await s3ClientReal.send(deleteCommand);
-          this.logger.log(`[Auditoría S3] Errores reportados por AWS: ${JSON.stringify(respuestaS3.Errors || 'Ninguno')}`);
-          this.logger.log(`[Auditoría S3] Objetos borrados reportados por AWS: ${JSON.stringify(respuestaS3.Deleted || 'Ninguno')}`);
           
-          this.logger.log(`[Rollback S3] Purga masiva en bloque finalizada.`);
-          
-          this.logger.log(`[Rollback S3] Purga masiva en bloque finalizada con éxito.`);
+          // Dejamos un log limpio: Solo registrará si AWS reporta algún error real de red o permisos
+          if (respuestaS3.Errors && respuestaS3.Errors.length > 0) {
+            this.logger.error(`[Auditoría S3] Se presentaron ${respuestaS3.Errors.length} errores durante la purga en AWS.`);
+          } else {
+            this.logger.log(`[Rollback S3] Purga masiva en bloque finalizada con éxito en los servidores de AWS.`);
+          }
         } else {
           this.logger.warn(`[Rollback S3] Cliente nativo no expuesto. Usando métodos del S3Service de la app...`);
           
-          // Buscamos cómo se llama tu método para borrar (ej: deleteFile, removeObject, eliminarArchivo)
           const nombreMetodoBorrado = Object.getOwnPropertyNames(Object.getPrototypeOf(this.s3Service))
             .find(m => m.toLowerCase().includes('delete') || m.toLowerCase().includes('remove') || m.toLowerCase().includes('eliminar'));
 
@@ -387,10 +383,11 @@ export class NominasService {
             );
             this.logger.log(`[Rollback S3] Borrado secuencial finalizado usando el método: ${nombreMetodoBorrado}`);
           } else {
-            throw new Error('No se localizó el cliente de AWS ni ningún método de borrado válido (deleteFile/remove) en el S3Service.');
+            throw new Error('No se localizó el cliente de AWS ni ningún método de borrado válido en el S3Service.');
           }
         }
       }
+
 
       // 7. Consolidar la transacción si la BD y S3 respondieron de forma correcta
       await queryRunner.commitTransaction();
