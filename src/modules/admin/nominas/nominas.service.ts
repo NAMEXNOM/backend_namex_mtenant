@@ -350,10 +350,19 @@ export class NominasService {
             Bucket: process.env.AWS_S3_BUCKET_NOMINAS || process.env.AWS_BUCKET_NAME || 'tu-bucket-default',
             Delete: {
               Objects: s3ObjectsToDelete,
-              Quiet: true
+              //Quiet: true
+              Quiet: false
             }
           });
-          await s3ClientReal.send(deleteCommand);
+          // await s3ClientReal.send(deleteCommand);
+          
+          // 🛠️ Bloque de auditoría temporal:
+          const respuestaS3 = await s3ClientReal.send(deleteCommand);
+          this.logger.log(`[Auditoría S3] Errores reportados por AWS: ${JSON.stringify(respuestaS3.Errors || 'Ninguno')}`);
+          this.logger.log(`[Auditoría S3] Objetos borrados reportados por AWS: ${JSON.stringify(respuestaS3.Deleted || 'Ninguno')}`);
+          
+          this.logger.log(`[Rollback S3] Purga masiva en bloque finalizada.`);
+          
           this.logger.log(`[Rollback S3] Purga masiva en bloque finalizada con éxito.`);
         } else {
           this.logger.warn(`[Rollback S3] Cliente nativo no expuesto. Usando métodos del S3Service de la app...`);
